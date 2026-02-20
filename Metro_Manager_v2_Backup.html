@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RET Metro Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F3F4F6;
+            color: #1F2937;
+            overflow: hidden;
+        }
+
+        /* RET Corporate Colors */
+        :root {
+            --ret-red: #C20019;
+            --ret-blue: #003D86;
+        }
+
+        /* UI Elements */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #F3F4F6;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #D1D5DB;
+            border-radius: 3px;
+        }
+
+        .btn-ret {
+            background-color: white;
+            border: 1px solid #E5E7EB;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: all 0.15s ease;
+        }
+
+        .btn-ret:hover:not(:disabled) {
+            border-color: #D1D5DB;
+            background-color: #F9FAFB;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .btn-ret:active:not(:disabled) {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+
+        .btn-ret:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: #F3F4F6;
+        }
+
+        .btn-control {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .btn-control:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(2px);
+        }
+
+        /* Pause Overlay */
+        .pause-overlay {
+            background-color: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(4px);
+        }
+
+        canvas {
+            /* No pixelated rendering for smoother look */
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col">
+
+    <!-- Header -->
+    <header
+        class="bg-[#C20019] p-4 border-b border-red-800 flex justify-between items-center z-10 shrink-0 shadow-md text-white">
+        <div class="flex items-center gap-4">
+            <!-- Simple RET Logo Simulation -->
+            <div class="bg-white text-[#C20019] font-bold px-3 py-1 rounded-sm tracking-wider text-xl">RET</div>
+            <div>
+                <h1 class="text-lg font-semibold tracking-wide opacity-90">Metro Manager</h1>
+            </div>
+        </div>
+
+        <!-- Game Controls -->
+        <div class="flex gap-2">
+            <button onclick="togglePause()" id="btn-pause" class="btn-control flex items-center gap-2">
+                <span>⏸</span> Pauze
+            </button>
+            <button onclick="confirmRestart()" class="btn-control flex items-center gap-2">
+                <span>🔄</span> Opnieuw
+            </button>
+        </div>
+
+        <div class="flex gap-8 text-right text-sm">
+            <div>
+                <p class="text-[10px] opacity-80 uppercase tracking-wider">Budget</p>
+                <p class="text-xl font-bold">€ <span id="money-display">0</span></p>
+            </div>
+            <div>
+                <p class="text-[10px] opacity-80 uppercase tracking-wider">Vervoerd</p>
+                <p class="text-xl font-bold"><span id="passengers-display">0</span></p>
+            </div>
+            <div>
+                <p class="text-[10px] opacity-80 uppercase tracking-wider">Tevredenheid</p>
+                <p class="text-xl font-bold"><span id="reputation-display">100</span>%</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- Canvas -->
+        <div class="relative flex-1 bg-slate-50 overflow-hidden" id="canvas-container">
+            <canvas id="gameCanvas"></canvas>
+
+            <!-- Notifications -->
+            <div id="notification-area" class="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none w-80 z-20">
+            </div>
+
+            <!-- Pause Overlay -->
+            <div id="pause-overlay"
+                class="pause-overlay absolute inset-0 hidden flex flex-col items-center justify-center z-20">
+                <div class="text-[#C20019] text-4xl font-bold tracking-widest mb-2">GEPAUZEERD</div>
+                <div class="text-gray-500 text-sm">Klik op 'Hervat' om verder te gaan</div>
+            </div>
+
+            <!-- Spawn Selection Modal (Hidden by default) -->
+            <div id="spawn-modal" class="modal-overlay absolute inset-0 hidden flex items-center justify-center z-30">
+                <div class="bg-white p-6 rounded-lg border border-gray-200 w-96 max-w-full shadow-2xl">
+                    <h2 class="text-xl font-bold text-[#003D86] mb-2">Nieuwe Metro Inzetten</h2>
+                    <p class="text-sm text-gray-500 mb-6">Selecteer het startstation voor deze lijn.</p>
+
+                    <div id="spawn-choices" class="flex flex-col gap-3 mb-6">
+                        <!-- Buttons injected by JS -->
+                    </div>
+
+                    <button onclick="closeSpawnModal()"
+                        class="w-full py-2 text-sm text-gray-500 hover:text-gray-800 font-medium">Annuleren</button>
+                </div>
+            </div>
+
+            <!-- Restart Confirmation Modal -->
+            <div id="restart-modal" class="modal-overlay absolute inset-0 hidden flex items-center justify-center z-40">
+                <div class="bg-white p-6 rounded-lg border border-gray-200 w-80 max-w-full shadow-2xl text-center">
+                    <div class="text-4xl mb-4">⚠️</div>
+                    <h2 class="text-lg font-bold text-gray-800 mb-2">Opnieuw Beginnen?</h2>
+                    <p class="text-sm text-gray-500 mb-6">Alle voortgang gaat verloren. Weet je het zeker?</p>
+
+                    <div class="flex gap-2">
+                        <button onclick="closeRestartModal()"
+                            class="flex-1 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded hover:bg-gray-200">Annuleren</button>
+                        <button onclick="resetGame()"
+                            class="flex-1 py-2 text-sm font-bold text-white bg-[#C20019] rounded hover:bg-red-700">Ja,
+                            Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="w-[400px] bg-white border-l border-gray-200 flex flex-col overflow-y-auto shrink-0 z-10 shadow-lg">
+
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-200">
+                <button onclick="switchTab('manage')" id="tab-manage"
+                    class="flex-1 py-4 text-xs font-bold uppercase tracking-wider text-[#003D86] border-b-2 border-[#003D86] hover:bg-gray-50 transition">
+                    Beheer
+                </button>
+                <button onclick="switchTab('expand')" id="tab-expand"
+                    class="flex-1 py-4 text-xs font-bold uppercase tracking-wider text-gray-400 border-b-2 border-transparent hover:text-gray-600 hover:bg-gray-50 transition">
+                    Uitbreiding
+                </button>
+            </div>
+
+            <!-- Tab: Manage -->
+            <div id="panel-manage" class="p-6 flex-1 flex flex-col gap-6">
+
+                <!-- Quick Stats -->
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 grid grid-cols-2 gap-3 text-sm">
+                    <div class="text-gray-500">Vloot:</div>
+                    <div class="text-right text-[#003D86] font-bold"><span id="fleet-size">0</span> treinen</div>
+                    <div class="text-gray-500">Tarief:</div>
+                    <div class="text-right text-[#003D86] font-bold">€<span id="ticket-price">0.00</span></div>
+                    <div class="text-gray-500">Wachtenden:</div>
+                    <div class="text-right text-[#C20019] font-bold"><span id="waiting-count">0</span></div>
+                </div>
+
+                <!-- Buy Train -->
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="text-sm font-bold text-gray-800 uppercase tracking-wide">Materieel Inzetten</div>
+                    </div>
+                    <div class="grid grid-cols-5 gap-2">
+                        <button id="btn-train-0" onclick="initiateBuyTrain(0)"
+                            class="btn-ret rounded-md p-2 flex flex-col items-center justify-center h-16 group">
+                            <span class="font-bold text-lg text-[#009E4D]">A</span>
+                            <span class="text-[10px] text-gray-400 group-hover:text-gray-600 cost-label">€500</span>
+                        </button>
+                        <button id="btn-train-1" onclick="initiateBuyTrain(1)"
+                            class="btn-ret rounded-md p-2 flex flex-col items-center justify-center h-16 group">
+                            <span class="font-bold text-lg text-[#FFD700]">B</span>
+                            <span class="text-[10px] text-gray-400 group-hover:text-gray-600 cost-label">€500</span>
+                        </button>
+                        <button id="btn-train-2" onclick="initiateBuyTrain(2)"
+                            class="btn-ret rounded-md p-2 flex flex-col items-center justify-center h-16 group">
+                            <span class="font-bold text-lg text-[#E30613]">C</span>
+                            <span class="text-[10px] text-gray-400 group-hover:text-gray-600 cost-label">€500</span>
+                        </button>
+                        <button id="btn-train-3" onclick="initiateBuyTrain(3)"
+                            class="btn-ret rounded-md p-2 flex flex-col items-center justify-center h-16 group">
+                            <span class="font-bold text-lg text-[#00A1DE]">D</span>
+                            <span class="text-[10px] text-gray-400 group-hover:text-gray-600 cost-label">€500</span>
+                        </button>
+                        <button id="btn-train-4" onclick="initiateBuyTrain(4)"
+                            class="btn-ret rounded-md p-2 flex flex-col items-center justify-center h-16 group">
+                            <span class="font-bold text-lg text-[#003D86]">E</span>
+                            <span class="text-[10px] text-gray-400 group-hover:text-gray-600 cost-label">€500</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Upgrades List -->
+                <div class="space-y-3">
+                    <div class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-1">Investeringen</div>
+
+                    <button id="btn-speed"
+                        class="btn-ret w-full p-4 rounded-lg flex justify-between items-center group text-left">
+                        <div>
+                            <div class="font-bold text-gray-800 text-sm">Frequentie Verhogen</div>
+                            <div class="text-xs text-gray-500">Snellere doorstroming</div>
+                        </div>
+                        <div class="text-[#003D86] font-bold text-sm">€<span id="cost-speed">300</span></div>
+                    </button>
+
+                    <button id="btn-capacity"
+                        class="btn-ret w-full p-4 rounded-lg flex justify-between items-center group text-left">
+                        <div>
+                            <div class="font-bold text-gray-800 text-sm">Langere Metro's</div>
+                            <div class="text-xs text-gray-500">+ Capaciteit per rit</div>
+                        </div>
+                        <div class="text-[#003D86] font-bold text-sm">€<span id="cost-capacity">400</span></div>
+                    </button>
+
+                    <button id="btn-comfort"
+                        class="btn-ret w-full p-4 rounded-lg flex justify-between items-center group text-left">
+                        <div>
+                            <div class="font-bold text-gray-800 text-sm">Station Faciliteiten</div>
+                            <div class="text-xs text-gray-500">Verhoogt ticketprijs</div>
+                        </div>
+                        <div class="text-[#003D86] font-bold text-sm">€<span id="cost-comfort">600</span></div>
+                    </button>
+
+                    <button id="btn-marketing"
+                        class="btn-ret w-full p-4 rounded-lg flex justify-between items-center group text-left border-l-4 border-l-[#C20019]">
+                        <div>
+                            <div class="font-bold text-gray-800 text-sm">Promotie Campagne</div>
+                            <div class="text-xs text-gray-500">Verbetert imago</div>
+                        </div>
+                        <div class="text-[#003D86] font-bold text-sm">€<span id="cost-marketing">150</span></div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab: Expand -->
+            <div id="panel-expand" class="p-6 flex-1 hidden flex-col gap-4">
+                <div
+                    class="bg-blue-50 border border-blue-100 p-4 rounded-lg text-xs text-blue-800 mb-2 leading-relaxed">
+                    <strong>Netwerk Uitbreiding</strong><br>
+                    Open nieuwe zones om het netwerk te vergroten. Passagiersaantallen zullen stijgen naarmate meer
+                    gebieden bereikbaar zijn.
+                </div>
+                <div id="expansion-list" class="flex flex-col gap-3 pb-4">
+                    <!-- Dynamic Content -->
+                </div>
+            </div>
+
+            <div class="p-4 bg-gray-50 border-t border-gray-200 text-[10px] text-gray-400 text-center">
+                RET Simulation Core v8.1 &bull; &copy; 2025
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- GAME DATA CONFIGURATION ---
+
+        const ZONES_DEF = {
+            'centrum': { name: 'Centrum (Start)', cost: 0, unlocked: true },
+            'kop_zuid': { name: 'Fase 1: Kop van Zuid', cost: 600, unlocked: false },
+            'west_1': { name: 'Fase 2: Schiedam C.', cost: 800, unlocked: false },
+            'slinge': { name: 'Fase 3: Slinge', cost: 1000, unlocked: false },
+            'oost_1': { name: 'Fase 4: Capelsebrug', cost: 1200, unlocked: false },
+            'binnenhof': { name: 'Lijn A: Binnenhof', cost: 1500, unlocked: false },
+            'nesselande': { name: 'Lijn B: Nesselande', cost: 1800, unlocked: false },
+            'de_terp': { name: 'Lijn C: De Terp', cost: 1800, unlocked: false },
+            'west_2': { name: 'West: Vlaardingen/Maassluis', cost: 2000, unlocked: false },
+            'hoek_holland': { name: 'Lijn B: Hoek v. Holland', cost: 2500, unlocked: false },
+            'spijkenisse': { name: 'Zuid: Spijkenisse', cost: 2200, unlocked: false },
+            'de_akkers': { name: 'Lijn C/D: De Akkers', cost: 2500, unlocked: false },
+            'randstad': { name: 'Lijn E: Den Haag', cost: 3500, unlocked: false },
+        };
+
+        // Mutable Zones object
+        let ZONES = JSON.parse(JSON.stringify(ZONES_DEF));
+
+        const STATIONS = [
+            // CENTRUM
+            { id: 'cs', name: 'Centraal', x: 0.45, y: 0.35, zone: 'centrum' },
+            { id: 'stadhuis', name: 'Stadhuis', x: 0.48, y: 0.42, zone: 'centrum' },
+            { id: 'beurs', name: 'Beurs', x: 0.50, y: 0.50, zone: 'centrum' },
+            { id: 'blaak', name: 'Blaak', x: 0.58, y: 0.50, zone: 'centrum' },
+            { id: 'leuvehaven', name: 'Leuvehaven', x: 0.50, y: 0.58, zone: 'centrum' },
+            { id: 'eendracht', name: 'Eendrachtspl.', x: 0.42, y: 0.51, zone: 'centrum' },
+            { id: 'dijkzigt', name: 'Dijkzigt', x: 0.36, y: 0.51, zone: 'centrum' },
+
+            // WEST
+            { id: 'coolhaven', name: 'Coolhaven', x: 0.30, y: 0.51, zone: 'west_1' },
+            { id: 'delfshaven', name: 'Delfshaven', x: 0.25, y: 0.50, zone: 'west_1' },
+            { id: 'marconi', name: 'Marconiplein', x: 0.20, y: 0.45, zone: 'west_1' },
+            { id: 'schiedam', name: 'Schiedam C.', x: 0.15, y: 0.38, zone: 'west_1' },
+            { id: 'vlaardingen', name: 'Vlaardingen C.', x: 0.10, y: 0.35, zone: 'west_2' },
+            { id: 'maassluis', name: 'Maassluis C.', x: 0.08, y: 0.30, zone: 'west_2' },
+            { id: 'hvh_haven', name: 'HvH Haven', x: 0.05, y: 0.25, zone: 'hoek_holland' },
+            { id: 'hvh_strand', name: 'HvH Strand', x: 0.03, y: 0.23, zone: 'hoek_holland' },
+
+            // ZUID
+            { id: 'wilhelmina', name: 'W.Plein', x: 0.50, y: 0.65, zone: 'kop_zuid' },
+            { id: 'rijnhaven', name: 'Rijnhaven', x: 0.50, y: 0.70, zone: 'kop_zuid' },
+            { id: 'maashaven', name: 'Maashaven', x: 0.50, y: 0.75, zone: 'kop_zuid' },
+            { id: 'zuidplein', name: 'Zuidplein', x: 0.48, y: 0.82, zone: 'slinge' },
+            { id: 'slinge', name: 'Slinge', x: 0.45, y: 0.88, zone: 'slinge' },
+            { id: 'rhoon', name: 'Rhoon', x: 0.40, y: 0.90, zone: 'spijkenisse' },
+            { id: 'hoogvliet', name: 'Hoogvliet', x: 0.25, y: 0.90, zone: 'spijkenisse' },
+            { id: 'spijk_c', name: 'Spijkenisse C.', x: 0.20, y: 0.94, zone: 'spijkenisse' },
+            { id: 'de_akkers', name: 'De Akkers', x: 0.15, y: 0.97, zone: 'de_akkers' },
+            { id: 'parkweg', name: 'Parkweg', x: 0.15, y: 0.45, zone: 'west_2' },
+            { id: 'pernis', name: 'Pernis', x: 0.18, y: 0.70, zone: 'west_2' },
+
+            // OOST
+            { id: 'oostplein', name: 'Oostplein', x: 0.65, y: 0.49, zone: 'oost_1' },
+            { id: 'gerdesia', name: 'Gerdesiaweg', x: 0.72, y: 0.48, zone: 'oost_1' },
+            { id: 'kralingse', name: 'Kralingse Z.', x: 0.80, y: 0.46, zone: 'oost_1' },
+            { id: 'capelse', name: 'Capelsebrug', x: 0.86, y: 0.44, zone: 'oost_1' },
+            { id: 'alexander', name: 'Alexander', x: 0.90, y: 0.35, zone: 'binnenhof' },
+            { id: 'binnenhof', name: 'Binnenhof', x: 0.88, y: 0.30, zone: 'binnenhof' },
+            { id: 'nesselande', name: 'Nesselande', x: 0.96, y: 0.30, zone: 'nesselande' },
+            { id: 'slotlaan', name: 'Slotlaan', x: 0.92, y: 0.50, zone: 'de_terp' },
+            { id: 'de_terp', name: 'De Terp', x: 0.95, y: 0.55, zone: 'de_terp' },
+
+            // NOORD
+            { id: 'blijdorp', name: 'Blijdorp', x: 0.42, y: 0.30, zone: 'randstad' },
+            { id: 'pijnacker', name: 'Pijnacker', x: 0.35, y: 0.20, zone: 'randstad' },
+            { id: 'den_haag', name: 'Den Haag CS', x: 0.25, y: 0.05, zone: 'randstad' }
+        ];
+
+        // OFFICIAL RET LINE COLORS
+        const ROUTES_DEF = [
+            {
+                id: 'A', name: 'Lijn A (Binnenhof)', color: '#009E4D', offset: -4, // Green
+                path: ['schiedam', 'marconi', 'delfshaven', 'coolhaven', 'dijkzigt', 'eendracht', 'beurs', 'blaak', 'oostplein', 'gerdesia', 'kralingse', 'capelse', 'alexander', 'binnenhof']
+            },
+            {
+                id: 'B', name: 'Lijn B (Nesselande)', color: '#FFD700', offset: 0, // Yellow
+                path: ['hvh_strand', 'hvh_haven', 'maassluis', 'vlaardingen', 'schiedam', 'marconi', 'delfshaven', 'coolhaven', 'dijkzigt', 'eendracht', 'beurs', 'blaak', 'oostplein', 'gerdesia', 'kralingse', 'capelse', 'alexander', 'nesselande']
+            },
+            {
+                id: 'C', name: 'Lijn C (De Terp)', color: '#E30613', offset: 4, // Red
+                path: ['de_akkers', 'spijk_c', 'hoogvliet', 'pernis', 'parkweg', 'schiedam', 'marconi', 'delfshaven', 'coolhaven', 'dijkzigt', 'eendracht', 'beurs', 'blaak', 'oostplein', 'gerdesia', 'kralingse', 'capelse', 'slotlaan', 'de_terp']
+            },
+            {
+                id: 'D', name: 'Lijn D (De Akkers)', color: '#00A1DE', offset: -3, // Light Blue
+                path: ['cs', 'stadhuis', 'beurs', 'leuvehaven', 'wilhelmina', 'rijnhaven', 'maashaven', 'zuidplein', 'slinge', 'rhoon', 'hoogvliet', 'spijk_c', 'de_akkers']
+            },
+            {
+                id: 'E', name: 'Lijn E (Slinge)', color: '#003D86', offset: 3, // Dark Blue
+                path: ['den_haag', 'pijnacker', 'blijdorp', 'cs', 'stadhuis', 'beurs', 'leuvehaven', 'wilhelmina', 'rijnhaven', 'maashaven', 'zuidplein', 'slinge']
+            }
+        ];
+
+        // --- GAME ENGINE ---
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Performance: Offscreen canvas for static map elements
+        let mapCanvas = document.createElement('canvas');
+        let mapCtx = mapCanvas.getContext('2d');
+        let mapDirty = true; // Flag to redraw map
+
+        let state = {};
+
+        function resetState() {
+            state = {
+                paused: false,
+                money: 600,
+                passengersTransported: 0,
+                reputation: 100,
+                baseTicketPrice: 15.00,
+                globalSpeed: 0.006,
+                trainCapacity: 20,
+                passengerPatience: 45000,
+                trains: [],
+                waitingPassengers: [],
+                lastSpawnTime: 0,
+                trainCounts: [0, 0, 0, 0, 0],
+                costs: {
+                    baseTrain: 500,
+                    speed: 300,
+                    capacity: 400,
+                    marketing: 150,
+                    comfort: 600
+                }
+            };
+        }
+
+        // --- PATHFINDING (BFS) ---
+        function findNextStation(startId, endId) {
+            if (startId === endId) return null;
+
+            const graph = {};
+            STATIONS.forEach(s => {
+                if (ZONES[s.zone].unlocked) graph[s.id] = [];
+            });
+
+            ROUTES_DEF.forEach(route => {
+                for (let i = 0; i < route.path.length - 1; i++) {
+                    const s1 = route.path[i];
+                    const s2 = route.path[i + 1];
+                    const z1 = STATIONS.find(s => s.id === s1).zone;
+                    const z2 = STATIONS.find(s => s.id === s2).zone;
+
+                    if (ZONES[z1].unlocked && ZONES[z2].unlocked) {
+                        if (graph[s1]) graph[s1].push(s2);
+                        if (graph[s2]) graph[s2].push(s1);
+                    }
+                }
+            });
+
+            let queue = [[startId]];
+            let visited = new Set();
+            visited.add(startId);
+
+            while (queue.length > 0) {
+                let path = queue.shift();
+                let node = path[path.length - 1];
+
+                if (node === endId) {
+                    return path.length > 1 ? path[1] : null;
+                }
+
+                if (graph[node]) {
+                    for (let neighbor of graph[node]) {
+                        if (!visited.has(neighbor)) {
+                            visited.add(neighbor);
+                            let newPath = [...path, neighbor];
+                            queue.push(newPath);
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function areStationsConnected(startId, endId) {
+            return findNextStation(startId, endId) !== null;
+        }
+
+        class Train {
+            constructor(routeDefIndex, spawnStationId = null) {
+                this.routeDefIndex = routeDefIndex;
+                this.routeDef = ROUTES_DEF[routeDefIndex];
+                this.updatePathCache();
+
+                if (this.activePath.length > 1) {
+                    if (spawnStationId) {
+                        const idx = this.activePath.indexOf(spawnStationId);
+                        if (idx !== -1) {
+                            this.currentStationIndex = idx;
+                            if (idx >= this.activePath.length - 1) {
+                                this.targetStationIndex = idx - 1;
+                                this.direction = -1;
+                            } else {
+                                this.targetStationIndex = idx + 1;
+                                this.direction = 1;
+                            }
+                        } else {
+                            this.currentStationIndex = 0;
+                            this.targetStationIndex = 1;
+                            this.direction = 1;
+                        }
+                    } else {
+                        this.currentStationIndex = Math.floor(Math.random() * (this.activePath.length - 1));
+                        this.targetStationIndex = this.currentStationIndex + 1;
+                        this.direction = 1;
+                    }
+                } else {
+                    this.currentStationIndex = 0;
+                    this.targetStationIndex = 0;
+                }
+
+                this.progress = 0;
+                this.passengers = [];
+                this.state = 'MOVING';
+                this.boardingTimer = 0;
+            }
+
+            updatePathCache() {
+                this.activePath = this.routeDef.path.filter(stId => {
+                    const st = STATIONS.find(s => s.id === stId);
+                    return ZONES[st.zone].unlocked;
+                });
+            }
+
+            update() {
+                if (!this.activePath || this.activePath.length < 2) return;
+
+                if (this.state === 'BOARDING') {
+                    this.boardingTimer--;
+                    if (this.boardingTimer <= 0) this.depart();
+                    return;
+                }
+
+                this.progress += state.globalSpeed;
+                if (this.progress >= 1) this.arrive();
+            }
+
+            arrive() {
+                this.state = 'BOARDING';
+                this.boardingTimer = 30;
+                this.currentStationIndex = this.targetStationIndex;
+                this.progress = 0;
+
+                const currentStationId = this.activePath[this.currentStationIndex];
+
+                const offloading = [];
+                const staying = [];
+
+                this.passengers.forEach(p => {
+                    if (p.nextDest === currentStationId) {
+                        offloading.push(p);
+                    } else {
+                        staying.push(p);
+                    }
+                });
+
+                if (offloading.length > 0) {
+                    let totalEarnings = 0;
+
+                    offloading.forEach(p => {
+                        if (currentStationId === p.finalDest) {
+                            const travelTime = Date.now() - p.spawnTime;
+                            let tip = 0;
+                            if (travelTime < state.passengerPatience * 0.7) tip = 5;
+
+                            totalEarnings += state.baseTicketPrice + tip;
+                            state.passengersTransported++;
+                            state.reputation = Math.min(100, state.reputation + 0.2);
+                        } else {
+                            totalEarnings += 2;
+                            state.waitingPassengers.push({
+                                from: currentStationId,
+                                to: p.finalDest,
+                                spawnTime: p.spawnTime,
+                                isTransfer: true
+                            });
+                        }
+                    });
+
+                    addMoney(totalEarnings);
+                    if (totalEarnings > 0) {
+                        showFloatText(`+€${Math.floor(totalEarnings)}`, getStationPos(currentStationId));
+                    }
+                }
+
+                this.passengers = staying;
+
+                if (this.direction === 1) {
+                    if (this.currentStationIndex >= this.activePath.length - 1) {
+                        this.direction = -1;
+                        this.targetStationIndex = this.currentStationIndex - 1;
+                    } else {
+                        this.targetStationIndex = this.currentStationIndex + 1;
+                    }
+                } else {
+                    if (this.currentStationIndex <= 0) {
+                        this.direction = 1;
+                        this.targetStationIndex = this.currentStationIndex + 1;
+                    } else {
+                        this.targetStationIndex = this.currentStationIndex - 1;
+                    }
+                }
+            }
+
+            depart() {
+                this.state = 'MOVING';
+                const currentStationId = this.activePath[this.currentStationIndex];
+
+                const peopleAtStation = state.waitingPassengers.filter(p => p.from === currentStationId);
+                const others = state.waitingPassengers.filter(p => p.from !== currentStationId);
+
+                let boarding = [];
+                let leftBehind = [];
+
+                peopleAtStation.forEach(p => {
+                    const nextHop = findNextStation(currentStationId, p.to);
+
+                    if (!nextHop) {
+                        leftBehind.push(p);
+                        return;
+                    }
+
+                    const destIndex = this.activePath.indexOf(nextHop);
+
+                    if (destIndex !== -1 && this.passengers.length + boarding.length < state.trainCapacity) {
+                        let canBoard = false;
+                        if (this.direction === 1 && destIndex > this.currentStationIndex) canBoard = true;
+                        if (this.direction === -1 && destIndex < this.currentStationIndex) canBoard = true;
+
+                        if (canBoard) {
+                            p.nextDest = nextHop;
+                            p.finalDest = p.to;
+                            boarding.push(p);
+                        } else {
+                            leftBehind.push(p);
+                        }
+                    } else {
+                        leftBehind.push(p);
+                    }
+                });
+
+                boarding.forEach(p => this.passengers.push(p));
+                state.waitingPassengers = [...others, ...leftBehind];
+            }
+        }
+
+        // --- CORE FUNCTIONS ---
+
+        function init() {
+            resetState();
+            // Initial trains start randomly
+            state.trains.push(new Train(3)); state.trainCounts[3]++;
+            state.trains.push(new Train(0)); state.trainCounts[0]++;
+
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            updateUI();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+
+            mapCanvas.width = canvas.width;
+            mapCanvas.height = canvas.height;
+            mapDirty = true;
+        }
+
+        function getStationPos(id, offset = 0) {
+            const s = STATIONS.find(s => s.id === id);
+            const shiftX = offset;
+            const shiftY = offset;
+
+            return {
+                x: (s.x * canvas.width) + shiftX,
+                y: (s.y * canvas.height) + shiftY,
+                baseX: s.x * canvas.width,
+                baseY: s.y * canvas.height
+            };
+        }
+
+        function spawnPassenger() {
+            const unlockedStations = STATIONS.filter(s => ZONES[s.zone].unlocked);
+            if (unlockedStations.length < 2) return;
+
+            const startNode = unlockedStations[Math.floor(Math.random() * unlockedStations.length)];
+            let endNode = startNode;
+            let attempts = 0;
+
+            while (attempts < 15) {
+                const candidate = unlockedStations[Math.floor(Math.random() * unlockedStations.length)];
+                if (candidate.id !== startNode.id) {
+                    if (areStationsConnected(startNode.id, candidate.id)) {
+                        endNode = candidate;
+                        break;
+                    }
+                }
+                attempts++;
+            }
+
+            if (endNode.id === startNode.id) return;
+
+            state.waitingPassengers.push({
+                from: startNode.id,
+                to: endNode.id,
+                spawnTime: Date.now(),
+                isTransfer: false
+            });
+        }
+
+        function addMoney(amount) {
+            state.money += amount;
+            updateUI();
+        }
+
+        function getTrainCost(routeIdx) {
+            return Math.floor(state.costs.baseTrain * Math.pow(1.3, state.trainCounts[routeIdx]));
+        }
+
+        // --- SPAWN LOGIC HELPERS ---
+
+        function getUnlockedPath(routeIdx) {
+            const route = ROUTES_DEF[routeIdx];
+            return route.path.filter(stId => {
+                const st = STATIONS.find(s => s.id === stId);
+                return ZONES[st.zone].unlocked;
+            });
+        }
+
+        function initiateBuyTrain(routeIdx) {
+            const cost = getTrainCost(routeIdx);
+            if (state.money < cost) {
+                notify("Onvoldoende saldo voor deze lijn!");
+                return;
+            }
+
+            const path = getUnlockedPath(routeIdx);
+            if (path.length < 2) {
+                notify("Lijn te kort om te rijden!");
+                return;
+            }
+
+            const startId = path[0];
+            const endId = path[path.length - 1];
+            const startName = STATIONS.find(s => s.id === startId).name;
+            const endName = STATIONS.find(s => s.id === endId).name;
+
+            const modal = document.getElementById('spawn-modal');
+            const choicesDiv = document.getElementById('spawn-choices');
+
+            choicesDiv.innerHTML = `
+                <button onclick="confirmBuyTrain(${routeIdx}, '${startId}')" class="btn-ret py-4 px-4 w-full rounded-lg text-left border-l-4 border-[#009E4D] hover:bg-gray-50 flex justify-between items-center group">
+                    <div>
+                        <span class="text-xs text-gray-400 block uppercase tracking-wider">Startpunt</span>
+                        <span class="font-bold text-gray-800">${startName}</span>
+                    </div>
+                    <span class="text-[#009E4D] opacity-0 group-hover:opacity-100 transition">Selecteer &rarr;</span>
+                </button>
+                <button onclick="confirmBuyTrain(${routeIdx}, '${endId}')" class="btn-ret py-4 px-4 w-full rounded-lg text-left border-l-4 border-[#E30613] hover:bg-gray-50 flex justify-between items-center group">
+                    <div>
+                        <span class="text-xs text-gray-400 block uppercase tracking-wider">Startpunt</span>
+                        <span class="font-bold text-gray-800">${endName}</span>
+                    </div>
+                    <span class="text-[#E30613] opacity-0 group-hover:opacity-100 transition">Selecteer &rarr;</span>
+                </button>
+                <div class="mt-4 text-center text-sm text-gray-500 font-medium border-t border-gray-100 pt-3">
+                    Kosten: <span class="text-[#003D86] font-bold">€${cost}</span>
+                </div>
+            `;
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeSpawnModal() {
+            document.getElementById('spawn-modal').classList.add('hidden');
+        }
+
+        function confirmBuyTrain(routeIdx, spawnId) {
+            const cost = getTrainCost(routeIdx);
+            if (state.money >= cost) {
+                state.money -= cost;
+                state.trains.push(new Train(routeIdx, spawnId));
+                state.trainCounts[routeIdx]++;
+                updateUI();
+                notify(`${ROUTES_DEF[routeIdx].id} Metro ingezet!`);
+                closeSpawnModal();
+            } else {
+                notify("Transactie mislukt!");
+                closeSpawnModal();
+            }
+        }
+
+
+        function unlockZone(zoneKey) {
+            const zone = ZONES[zoneKey];
+            if (state.money >= zone.cost && !zone.unlocked) {
+                state.money -= zone.cost;
+                zone.unlocked = true;
+                state.trains.forEach(t => t.updatePathCache());
+                mapDirty = true;
+                notify(`${zone.name} Geopend!`);
+                updateUI();
+            }
+        }
+
+        // --- CONTROLS ---
+
+        function togglePause() {
+            state.paused = !state.paused;
+            const overlay = document.getElementById('pause-overlay');
+            const btn = document.getElementById('btn-pause');
+
+            if (state.paused) {
+                overlay.classList.remove('hidden');
+                btn.innerHTML = '<span>▶</span> Hervat';
+                btn.classList.add('bg-green-600', 'border-green-500');
+            } else {
+                overlay.classList.add('hidden');
+                btn.innerHTML = '<span>⏸</span> Pauze';
+                btn.classList.remove('bg-green-600', 'border-green-500');
+            }
+        }
+
+        function confirmRestart() {
+            document.getElementById('restart-modal').classList.remove('hidden');
+        }
+
+        function closeRestartModal() {
+            document.getElementById('restart-modal').classList.add('hidden');
+        }
+
+        function resetGame() {
+            ZONES = JSON.parse(JSON.stringify(ZONES_DEF));
+            resetState();
+            closeRestartModal();
+
+            // Re-init initial trains
+            state.trains.push(new Train(3)); state.trainCounts[3]++;
+            state.trains.push(new Train(0)); state.trainCounts[0]++;
+
+            mapDirty = true;
+            updateUI();
+            notify("Spel opnieuw gestart!");
+        }
+
+        // --- DRAWING & LOGIC LOOP ---
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!state.paused) {
+                const now = Date.now();
+
+                const networkSize = STATIONS.filter(s => ZONES[s.zone].unlocked).length;
+                const spawnRate = 600 / (1 + (networkSize * 0.1));
+
+                if (now - state.lastSpawnTime > spawnRate) {
+                    if (Math.random() > 0.3) spawnPassenger();
+                    state.lastSpawnTime = now;
+                }
+
+                for (let i = state.waitingPassengers.length - 1; i >= 0; i--) {
+                    const p = state.waitingPassengers[i];
+                    if (now - p.spawnTime > state.passengerPatience) {
+                        state.waitingPassengers.splice(i, 1);
+                        state.reputation = Math.max(0, state.reputation - 1);
+                        if (Math.random() > 0.8) {
+                            const pos = getStationPos(p.from);
+                            showFloatText("🤬", { x: pos.baseX, y: pos.baseY - 10 });
+                        }
+                    }
+                }
+
+                state.trains.forEach(t => t.update());
+            }
+
+            // Always update UI counts even if paused (though they won't change)
+            document.getElementById('waiting-count').innerText = state.waitingPassengers.length;
+
+            if (mapDirty) {
+                prerenderMap();
+                mapDirty = false;
+            }
+            ctx.drawImage(mapCanvas, 0, 0);
+
+            drawTrains();
+            drawStationsDynamic();
+            drawEffects();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function prerenderMap() {
+            mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
+            mapCtx.lineCap = 'round';
+            mapCtx.lineJoin = 'round';
+
+            // Draw Lines Background (Subtle shadow for depth)
+            mapCtx.lineWidth = 12;
+            ROUTES_DEF.forEach(route => {
+                mapCtx.strokeStyle = 'rgba(0,0,0,0.05)'; // Very subtle shadow
+                mapCtx.beginPath();
+                for (let i = 0; i < route.path.length - 1; i++) {
+                    const p1 = getStationPos(route.path[i]).baseX;
+                    const p1y = getStationPos(route.path[i]).baseY;
+                    const p2 = getStationPos(route.path[i + 1]).baseX;
+                    const p2y = getStationPos(route.path[i + 1]).baseY;
+                    mapCtx.moveTo(p1, p1y + 2); // Slight offset for shadow
+                    mapCtx.lineTo(p2, p2y + 2);
+                }
+                mapCtx.stroke();
+            });
+
+            // Draw Colored Lines
+            ROUTES_DEF.forEach(route => {
+                mapCtx.lineWidth = 4; // Slightly thicker for visibility
+                mapCtx.strokeStyle = route.color;
+                mapCtx.beginPath();
+                let penDown = false;
+                for (let i = 0; i < route.path.length - 1; i++) {
+                    const s1 = STATIONS.find(s => s.id === route.path[i]);
+                    const s2 = STATIONS.find(s => s.id === route.path[i + 1]);
+                    const p1 = getStationPos(s1.id, route.offset);
+                    const p2 = getStationPos(s2.id, route.offset);
+                    if (ZONES[s1.zone].unlocked && ZONES[s2.zone].unlocked) {
+                        if (!penDown) { mapCtx.moveTo(p1.x, p1.y); penDown = true; }
+                        mapCtx.lineTo(p2.x, p2.y);
+                    } else { penDown = false; }
+                }
+                mapCtx.stroke();
+            });
+
+            // Draw Static Stations
+            STATIONS.forEach(station => {
+                if (!ZONES[station.zone].unlocked) return;
+                const pos = getStationPos(station.id);
+
+                // Base
+                mapCtx.fillStyle = '#fff';
+                mapCtx.strokeStyle = '#374151'; // Dark gray stroke
+                mapCtx.lineWidth = 2;
+                let radius = 4;
+                if (['beurs', 'cs', 'schiedam', 'kralingse', 'zuidplein'].includes(station.id)) {
+                    radius = 6; mapCtx.strokeStyle = '#000'; mapCtx.lineWidth = 3;
+                }
+                mapCtx.beginPath();
+                mapCtx.arc(pos.baseX, pos.baseY, radius, 0, Math.PI * 2);
+                mapCtx.fill();
+                mapCtx.stroke();
+
+                // Name
+                mapCtx.fillStyle = '#4B5563'; // Gray-600
+                mapCtx.font = '600 10px Inter'; // Inter font
+                mapCtx.textAlign = 'center';
+                let yOff = -12;
+                if (['blaak', 'eendracht', 'stadhuis'].includes(station.id)) yOff = 18;
+                mapCtx.fillText(station.name, pos.baseX, pos.baseY + yOff);
+            });
+        }
+
+        function drawStationsDynamic() {
+            const now = Date.now();
+            STATIONS.forEach(station => {
+                if (!ZONES[station.zone].unlocked) return;
+                const pos = getStationPos(station.id);
+
+                // Passengers Waiting
+                const waitingHere = state.waitingPassengers.filter(p => p.from === station.id);
+                if (waitingHere.length > 0) {
+                    const oldest = waitingHere.reduce((min, p) => p.spawnTime < min ? p.spawnTime : min, now);
+                    const waitTime = now - oldest;
+
+                    let color = '#10B981'; // Green-500
+                    if (waitTime > state.passengerPatience * 0.5) color = '#F59E0B'; // Amber-500
+                    if (waitTime > state.passengerPatience * 0.8) color = '#EF4444'; // Red-500
+
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    const size = Math.min(12, 6 + (waitingHere.length / 2));
+                    // Circle instead of square for cleaner look
+                    ctx.arc(pos.baseX + 8, pos.baseY - 8, size / 2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    if (waitTime > state.passengerPatience * 0.8) {
+                        ctx.fillStyle = '#fff';
+                        ctx.font = 'bold 8px Inter';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText('!', pos.baseX + 8, pos.baseY - 8);
+                    }
+                }
+            });
+        }
+
+        function drawTrains() {
+            state.trains.forEach(train => {
+                if (!train.activePath || train.activePath.length < 2) return;
+                const fromId = train.activePath[train.currentStationIndex];
+                const toId = train.activePath[train.targetStationIndex];
+                const fromPos = getStationPos(fromId, train.routeDef.offset);
+                const toPos = getStationPos(toId, train.routeDef.offset);
+                const x = fromPos.x + (toPos.x - fromPos.x) * train.progress;
+                const y = fromPos.y + (toPos.y - fromPos.y) * train.progress;
+                const angle = Math.atan2(toPos.y - fromPos.y, toPos.x - fromPos.x);
+
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle);
+
+                // Modern Train Shape
+                ctx.fillStyle = '#fff';
+                ctx.shadowColor = 'rgba(0,0,0,0.2)';
+                ctx.shadowBlur = 2;
+                ctx.fillRect(-10, -4, 20, 8);
+
+                // Line Color Stripe
+                ctx.fillStyle = train.routeDef.color;
+                ctx.fillRect(-10, -4, 4, 8); // Front/Back stripe
+
+                // Capacity Indicator (Dot)
+                const load = train.passengers.length / state.trainCapacity;
+                ctx.fillStyle = load > 0.9 ? '#EF4444' : (load > 0.5 ? '#F59E0B' : '#10B981');
+                ctx.beginPath(); ctx.arc(4, 0, 2, 0, Math.PI * 2); ctx.fill();
+
+                ctx.restore();
+            });
+        }
+
+        let floatTexts = [];
+        function showFloatText(text, pos) {
+            floatTexts.push({ text: text, x: pos.x, y: pos.y, life: 40 });
+        }
+
+        function drawEffects() {
+            ctx.font = 'bold 11px Inter';
+            for (let i = floatTexts.length - 1; i >= 0; i--) {
+                const ft = floatTexts[i];
+                if (ft.text === '🤬') ctx.fillStyle = '#EF4444';
+                else ctx.fillStyle = '#10B981';
+
+                ctx.fillText(ft.text, ft.x, ft.y - (40 - ft.life));
+                ft.life--;
+                if (ft.life <= 0) floatTexts.splice(i, 1);
+            }
+        }
+
+        function notify(msg) {
+            const area = document.getElementById('notification-area');
+            const el = document.createElement('div');
+            el.className = 'bg-white border-l-4 border-[#003D86] text-gray-800 text-xs p-3 shadow-lg rounded-r animate-[fadeIn_0.3s_ease-out] flex items-center';
+            el.innerHTML = `<span class="font-bold mr-2 text-[#003D86]">INFO</span> ${msg}`;
+            area.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+
+        function updateUI() {
+            document.getElementById('money-display').innerText = Math.floor(state.money);
+            document.getElementById('passengers-display').innerText = state.passengersTransported;
+            document.getElementById('reputation-display').innerText = Math.floor(state.reputation);
+            document.getElementById('fleet-size').innerText = state.trains.length;
+            document.getElementById('ticket-price').innerText = state.baseTicketPrice.toFixed(2);
+            document.getElementById('cost-speed').innerText = state.costs.speed;
+            document.getElementById('cost-capacity').innerText = state.costs.capacity;
+            document.getElementById('cost-comfort').innerText = state.costs.comfort;
+            document.getElementById('cost-marketing').innerText = state.costs.marketing;
+
+            const btns = ['btn-speed', 'btn-capacity', 'btn-comfort', 'btn-marketing'];
+            btns.forEach(id => {
+                const type = id.split('-')[1];
+                document.getElementById(id).disabled = state.money < state.costs[type];
+            });
+
+            for (let i = 0; i < 5; i++) {
+                const btn = document.getElementById(`btn-train-${i}`);
+                const cost = getTrainCost(i);
+
+                const label = btn.querySelector('.cost-label');
+                if (label) label.innerText = `€${cost}`;
+
+                btn.title = `${ROUTES_DEF[i].name}\nKosten: €${cost}`;
+                if (state.money < cost) {
+                    btn.classList.add('opacity-50');
+                } else {
+                    btn.classList.remove('opacity-50');
+                }
+            }
+
+            const list = document.getElementById('expansion-list');
+            list.innerHTML = '';
+            Object.keys(ZONES).forEach(key => {
+                if (key === 'centrum') return;
+                const zone = ZONES[key];
+                const div = document.createElement('div');
+                div.className = `flex justify-between items-center p-3 rounded-lg border ${zone.unlocked ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`;
+                div.innerHTML = `
+                    <div>
+                        <div class="font-bold text-xs ${zone.unlocked ? 'text-green-700' : 'text-gray-700'}">${zone.name}</div>
+                        <div class="text-[10px] text-gray-400">${zone.unlocked ? 'Operationeel' : 'Kosten: €' + zone.cost}</div>
+                    </div>
+                    ${!zone.unlocked ? `
+                        <button onclick="unlockZone('${key}')" class="btn-ret px-3 py-1 text-[10px] font-bold text-[#003D86] hover:bg-blue-50" ${state.money < zone.cost ? 'disabled' : ''}>
+                            BOUW
+                        </button>
+                    ` : '<span class="text-green-600 text-sm">✔</span>'}
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        window.switchTab = (tab) => {
+            document.getElementById('panel-manage').style.display = tab === 'manage' ? 'flex' : 'none';
+            document.getElementById('panel-expand').style.display = tab === 'expand' ? 'flex' : 'none';
+            const tM = document.getElementById('tab-manage');
+            const tE = document.getElementById('tab-expand');
+
+            // Active/Inactive styles handled by class replacement
+            if (tab === 'manage') {
+                tM.classList.add('text-[#003D86]', 'border-[#003D86]');
+                tM.classList.remove('text-gray-400', 'border-transparent');
+                tE.classList.add('text-gray-400', 'border-transparent');
+                tE.classList.remove('text-[#003D86]', 'border-[#003D86]');
+            } else {
+                tE.classList.add('text-[#003D86]', 'border-[#003D86]');
+                tE.classList.remove('text-gray-400', 'border-transparent');
+                tM.classList.add('text-gray-400', 'border-transparent');
+                tM.classList.remove('text-[#003D86]', 'border-[#003D86]');
+            }
+        };
+
+        // Listeners
+        document.getElementById('btn-speed').onclick = () => {
+            if (state.money >= state.costs.speed) {
+                state.money -= state.costs.speed;
+                state.costs.speed = Math.floor(state.costs.speed * 1.5);
+                state.globalSpeed *= 1.15;
+                updateUI();
+                notify("Systeem update: 15% sneller");
+            }
+        };
+        document.getElementById('btn-capacity').onclick = () => {
+            if (state.money >= state.costs.capacity) {
+                state.money -= state.costs.capacity;
+                state.costs.capacity = Math.floor(state.costs.capacity * 1.5);
+                state.trainCapacity += 10;
+                updateUI();
+                notify("Vloot uitgebreid: +10 pax/trein");
+            }
+        };
+        document.getElementById('btn-comfort').onclick = () => {
+            if (state.money >= state.costs.comfort) {
+                state.money -= state.costs.comfort;
+                state.costs.comfort = Math.floor(state.costs.comfort * 1.5);
+                state.baseTicketPrice += 3.00;
+                state.passengerPatience += 5000;
+                updateUI();
+                notify("Upgrade: Prijs +€3.00 & Geduld +5s");
+            }
+        };
+        document.getElementById('btn-marketing').onclick = () => {
+            if (state.money >= state.costs.marketing) {
+                state.money -= state.costs.marketing;
+                state.costs.marketing = Math.floor(state.costs.marketing * 1.3);
+                state.reputation = Math.min(100, state.reputation + 25);
+                updateUI();
+                notify("Campagne geslaagd!");
+            }
+        };
+
+        init();
+
+    </script>
+</body>
+
+</html>
