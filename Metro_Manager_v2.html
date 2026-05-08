@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RET Metro Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body class="h-screen flex flex-col">
+
+    <!-- Header -->
+    <header
+        class="bg-[#C20019] p-4 border-b border-red-800 flex justify-between items-center z-10 shrink-0 shadow-md text-white">
+        <div class="flex items-center gap-4">
+            <!-- Simple RET Logo Simulation -->
+            <div class="bg-white text-[#C20019] font-bold px-3 py-1 rounded-sm tracking-wider text-xl">RET</div>
+            <div>
+                <h1 class="text-lg font-semibold tracking-wide opacity-90">Metro Manager</h1>
+            </div>
+        </div>
+
+        <!-- Game Controls -->
+        <div class="flex gap-2">
+            <button onclick="togglePause()" id="btn-pause" class="btn-control flex items-center gap-2">
+                <span>⏸</span> Pauze
+            </button>
+            <button onclick="confirmRestart()" class="btn-control flex items-center gap-2">
+                <span>🔄</span> Opnieuw
+            </button>
+        </div>
+
+        <div class="flex gap-8 text-right text-sm">
+            <div>
+                <p class="text-[10px] opacity-80 uppercase tracking-wider">Budget</p>
+                <p class="text-xl font-bold">€ <span id="money-display">0</span></p>
+            </div>
+            <div>
+                <p class="text-[10px] opacity-80 uppercase tracking-wider">Vervoerd</p>
+                <p class="text-xl font-bold"><span id="passengers-display">0</span></p>
+            </div>
+            <div>
+                <p class="text-[10px] opacity-80 uppercase tracking-wider">Tevredenheid</p>
+                <p class="text-xl font-bold"><span id="reputation-display">100</span>%</p>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- Canvas -->
+        <div class="relative flex-1 bg-slate-50 overflow-hidden" id="canvas-container">
+            <canvas id="gameCanvas"></canvas>
+
+            <!-- Notifications -->
+            <div id="notification-area" class="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none w-80 z-20">
+            </div>
+
+            <!-- Pause Overlay -->
+            <div id="pause-overlay"
+                class="pause-overlay absolute inset-0 hidden flex flex-col items-center justify-center z-20">
+                <div class="text-[#C20019] text-4xl font-bold tracking-widest mb-2">GEPAUZEERD</div>
+                <div class="text-gray-500 text-sm">Klik op 'Hervat' om verder te gaan</div>
+            </div>
+
+            <!-- Spawn Selection Modal (Hidden by default) -->
+            <div id="spawn-modal" class="modal-overlay absolute inset-0 hidden flex items-center justify-center z-30">
+                <div class="bg-white p-6 rounded-lg border border-gray-200 w-96 max-w-full shadow-2xl">
+                    <h2 class="text-xl font-bold text-[#003D86] mb-2">Nieuwe Metro Inzetten</h2>
+                    <p class="text-sm text-gray-500 mb-6">Selecteer het startstation voor deze lijn.</p>
+
+                    <div id="spawn-choices" class="flex flex-col gap-3 mb-6">
+                        <!-- Buttons injected by JS -->
+                    </div>
+
+                    <button onclick="closeSpawnModal()"
+                        class="w-full py-2 text-sm text-gray-500 hover:text-gray-800 font-medium">Annuleren</button>
+                </div>
+            </div>
+
+            <!-- Restart Confirmation Modal -->
+            <div id="restart-modal" class="modal-overlay absolute inset-0 hidden flex items-center justify-center z-40">
+                <div class="bg-white p-6 rounded-lg border border-gray-200 w-80 max-w-full shadow-2xl text-center">
+                    <div class="text-4xl mb-4">⚠️</div>
+                    <h2 class="text-lg font-bold text-gray-800 mb-2">Opnieuw Beginnen?</h2>
+                    <p class="text-sm text-gray-500 mb-6">Alle voortgang gaat verloren. Weet je het zeker?</p>
+
+                    <div class="flex gap-2">
+                        <button onclick="closeRestartModal()"
+                            class="flex-1 py-2 text-sm font-bold text-gray-600 bg-gray-100 rounded hover:bg-gray-200">Annuleren</button>
+                        <button onclick="resetGame()"
+                            class="flex-1 py-2 text-sm font-bold text-white bg-[#C20019] rounded hover:bg-red-700">Ja,
+                            Reset</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="w-[400px] bg-white border-l border-gray-200 flex flex-col overflow-y-auto shrink-0 z-10 shadow-lg">
+
+            <!-- Tabs -->
+            <div class="flex border-b border-gray-200">
+                <button onclick="switchTab('manage')" id="tab-manage"
+                    class="flex-1 py-4 text-xs font-bold uppercase tracking-wider text-[#003D86] border-b-2 border-[#003D86] hover:bg-gray-50 transition">
+                    Beheer
+                </button>
+                <button onclick="switchTab('expand')" id="tab-expand"
+                    class="flex-1 py-4 text-xs font-bold uppercase tracking-wider text-gray-400 border-b-2 border-transparent hover:text-gray-600 hover:bg-gray-50 transition">
+                    Uitbreiding
+                </button>
+            </div>
+
+            <!-- Tab: Manage -->
+            <div id="panel-manage" class="p-6 flex-1 flex flex-col gap-6">
+
+                <!-- Quick Stats -->
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 grid grid-cols-2 gap-3 text-sm">
+                    <div class="text-gray-500">Vloot:</div>
+                    <div class="text-right text-[#003D86] font-bold"><span id="fleet-size">0</span> treinen</div>
+                    <div class="text-gray-500">Tarief:</div>
+                    <div class="text-right text-[#003D86] font-bold">€<span id="ticket-price">0.00</span></div>
+                    <div class="text-gray-500">Wachtenden:</div>
+                    <div class="text-right text-[#C20019] font-bold"><span id="waiting-count">0</span></div>
+                </div>
+
+                <!-- Buy Train -->
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="text-sm font-bold text-gray-800 uppercase tracking-wide">Materieel Inzetten</div>
+                    </div>
+                    <div class="grid grid-cols-5 gap-2">
+                        <button id="btn-train-0" onclick="initiateBuyTrain(0)"
+                            class="btn-ret rounded-md p-2 flex flex-col items-center justify-center h-16 group">
+                            <span class="font-bold text-lg text-[#009E4D]">A</span>
+                            <span class="text-[10px] text-gray-400 group-hover:text-gray-600 cost-label">€500</span>
+                        </button>
+                        <button id="btn-train-1" onclick="initiateBuyTrain(1)"
+                            class="btn-ret rounded-md p-2 flex flex-col items-center justify-center h-16 group">
+                            <span class="font-bold text-lg text-[#FFD700]">B</span>
+                            <span class="text-[10px] text-gray-400 group-hover:text-gray-600 cost-label">€500</span>
+                        </button>
+                        <button id="btn-train-2" onclick="initiateBuyTrain(2)"
+                            class="btn-ret rounded-md p-2 flex flex-col items-center justify-center h-16 group">
+                            <span class="font-bold text-lg text-[#E30613]">C</span>
+                            <span class="text-[10px] text-gray-400 group-hover:text-gray-600 cost-label">€500</span>
+                        </button>
+                        <button id="btn-train-3" onclick="initiateBuyTrain(3)"
+                            class="btn-ret rounded-md p-2 flex flex-col items-center justify-center h-16 group">
+                            <span class="font-bold text-lg text-[#00A1DE]">D</span>
+                            <span class="text-[10px] text-gray-400 group-hover:text-gray-600 cost-label">€500</span>
+                        </button>
+                        <button id="btn-train-4" onclick="initiateBuyTrain(4)"
+                            class="btn-ret rounded-md p-2 flex flex-col items-center justify-center h-16 group">
+                            <span class="font-bold text-lg text-[#003D86]">E</span>
+                            <span class="text-[10px] text-gray-400 group-hover:text-gray-600 cost-label">€500</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Upgrades List -->
+                <div class="space-y-3">
+                    <div class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-1">Investeringen</div>
+
+                    <button id="btn-speed"
+                        class="btn-ret w-full p-4 rounded-lg flex justify-between items-center group text-left">
+                        <div>
+                            <div class="font-bold text-gray-800 text-sm">Frequentie Verhogen</div>
+                            <div class="text-xs text-gray-500">Snellere doorstroming</div>
+                        </div>
+                        <div class="text-[#003D86] font-bold text-sm">€<span id="cost-speed">300</span></div>
+                    </button>
+
+                    <button id="btn-capacity"
+                        class="btn-ret w-full p-4 rounded-lg flex justify-between items-center group text-left">
+                        <div>
+                            <div class="font-bold text-gray-800 text-sm">Langere Metro's</div>
+                            <div class="text-xs text-gray-500">+ Capaciteit per rit</div>
+                        </div>
+                        <div class="text-[#003D86] font-bold text-sm">€<span id="cost-capacity">400</span></div>
+                    </button>
+
+                    <button id="btn-comfort"
+                        class="btn-ret w-full p-4 rounded-lg flex justify-between items-center group text-left">
+                        <div>
+                            <div class="font-bold text-gray-800 text-sm">Station Faciliteiten</div>
+                            <div class="text-xs text-gray-500">Verhoogt ticketprijs</div>
+                        </div>
+                        <div class="text-[#003D86] font-bold text-sm">€<span id="cost-comfort">600</span></div>
+                    </button>
+
+                    <button id="btn-marketing"
+                        class="btn-ret w-full p-4 rounded-lg flex justify-between items-center group text-left border-l-4 border-l-[#C20019]">
+                        <div>
+                            <div class="font-bold text-gray-800 text-sm">Promotie Campagne</div>
+                            <div class="text-xs text-gray-500">Verbetert imago</div>
+                        </div>
+                        <div class="text-[#003D86] font-bold text-sm">€<span id="cost-marketing">150</span></div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab: Expand -->
+            <div id="panel-expand" class="p-6 flex-1 hidden flex-col gap-4">
+                <div
+                    class="bg-blue-50 border border-blue-100 p-4 rounded-lg text-xs text-blue-800 mb-2 leading-relaxed">
+                    <strong>Netwerk Uitbreiding</strong><br>
+                    Open nieuwe zones om het netwerk te vergroten. Passagiersaantallen zullen stijgen naarmate meer
+                    gebieden bereikbaar zijn.
+                </div>
+                <div id="expansion-list" class="flex flex-col gap-3 pb-4">
+                    <!-- Dynamic Content -->
+                </div>
+            </div>
+
+            <div class="p-4 bg-gray-50 border-t border-gray-200 text-[10px] text-gray-400 text-center">
+                RET Simulation Core v8.1 &bull; &copy; 2025
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Scripts (Order Matters!) -->
+    <script src="js/data.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/Train.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/game.js"></script>
+</body>
+
+</html>
