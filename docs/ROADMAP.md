@@ -39,12 +39,12 @@ Doel: alle tests in `tests/known-bugs.test.ts` groen, zonder de spelbeleving te 
 
 Opgedeeld in deel-PR's (afgestemd met Coen, 24 sep 2026):
 
-| Deel | Bugs       | Inhoud                                              | Status |
-| ---- | ---------- | --------------------------------------------------- | ------ |
-| 2a   | B3, B6, B7 | Tijdmodel: spelklok, vaste tijdstap, kaarteenheden  | ✅     |
-| 2b   | B1, B2     | Waypoints puur visueel, reisplanner met etappes     | ✅     |
-| 2c   | B4, B5     | Zones: trein blijft op zijn plek, alleen aansluiten | 🔜     |
-| 2d   | –          | Balans-config en bot-simulatie                      | ⏳     |
+| Deel | Bugs       | Inhoud                                             | Status |
+| ---- | ---------- | -------------------------------------------------- | ------ |
+| 2a   | B3, B6, B7 | Tijdmodel: spelklok, vaste tijdstap, kaarteenheden | ✅     |
+| 2b   | B1, B2     | Waypoints puur visueel, reisplanner met etappes    | ✅     |
+| 2c   | B4, B5, B8 | Zones en spoor, plus tellers in de zijbalk         | 🔜     |
+| 2d   | –          | Balans-config en bot-simulatie                     | ⏳     |
 
 Besluiten 2a:
 
@@ -54,6 +54,12 @@ Besluiten 2a:
   vóór fase 2 op een speelveld van 1200×800 bij 60 fps, en nu op elk scherm en elke framerate hetzelfde.
 - Tab weg of venster geminimaliseerd: het spel pauzeert automatisch. Hervatten doet de speler zelf.
   Alleen naar een ander venster klikken (zonder minimaliseren) pauzeert niet.
+
+Afspraken 2c (24 sep):
+
+- B8 in 2c, samen met B4 en B5 (zelfde familie: zones en spoor).
+- Tellers in de zijbalk: vervoerd, verlopen, overstappen, gemiddelde reistijd. Coen kan reizigers niet
+  individueel volgen, dus zo kan hij zelf zien of het spel doet wat het moet doen. Nodig voor 2d.
 
 Besluiten 2b:
 
@@ -94,15 +100,16 @@ gemerged: hij heeft geen gemeenschappelijke geschiedenis met `main` en bevat een
 
 Let op: ook die branch stapt nog op elke tussenhalte uit en in (B2 zit er ook in).
 
-| ID    | Probleem                                                                                                                                                   | Aanpak                                                                                                                                                                |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ✅ B1 | Reizigers spawnen op onzichtbare waypoints, en reizigers met een waypoint als volgende halte blijven eeuwig in de trein zitten.                            | Waypoints worden puur visueel: niet in spawn, niet in de routegraaf.                                                                                                  |
-| ✅ B2 | Reizigers stappen op elke tussenhalte uit en in (+€2 per halte); de afstandsbonus telt alleen de laatste halte.                                            | Reisplanner: reis als reeks (lijn, uitstaphalte). Alleen overstappen waar de lijn wisselt. Idee uit de lokale branch: alleen routeren via lijnen waar treinen rijden. |
-| ✅ B3 | Tijdmodel: snelheid hangt af van framerate en schermgrootte; pauze en tab-wissel laten reizigers massaal verlopen; overvol-timer loopt door tijdens pauze. | Vaste tijdstap op een spelklok (`gameTime`) die stilstaat bij pauze. Afstanden in kaarteenheden in plaats van pixels.                                                 |
-| B4    | Treinen verspringen als er een zone opengaat.                                                                                                              | Positie hermappen op station-id (was lokaal al opgelost).                                                                                                             |
-| B5    | Zones kunnen in elke volgorde open; treinen rijden dan over niet-bestaand spoor naar onbereikbare eilanden.                                                | Zone alleen te openen als hij aansluit op een open zone.                                                                                                              |
-| ✅ B6 | Overvol-timer van een station wordt niet gewist als het station helemaal leegloopt; later weer vol betekent direct game over.                              | Timer wissen voor elk station dat niet (meer) overvol is.                                                                                                             |
-| ✅ B7 | Na game over hervat de pauzeknop de simulatie.                                                                                                             | Pauze blokkeren na game over.                                                                                                                                         |
+| ID    | Probleem                                                                                                                                                                                 | Aanpak                                                                                                                                                                                     |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ✅ B1 | Reizigers spawnen op onzichtbare waypoints, en reizigers met een waypoint als volgende halte blijven eeuwig in de trein zitten.                                                          | Waypoints worden puur visueel: niet in spawn, niet in de routegraaf.                                                                                                                       |
+| ✅ B2 | Reizigers stappen op elke tussenhalte uit en in (+€2 per halte); de afstandsbonus telt alleen de laatste halte.                                                                          | Reisplanner: reis als reeks (lijn, uitstaphalte). Alleen overstappen waar de lijn wisselt. Idee uit de lokale branch: alleen routeren via lijnen waar treinen rijden.                      |
+| ✅ B3 | Tijdmodel: snelheid hangt af van framerate en schermgrootte; pauze en tab-wissel laten reizigers massaal verlopen; overvol-timer loopt door tijdens pauze.                               | Vaste tijdstap op een spelklok (`gameTime`) die stilstaat bij pauze. Afstanden in kaarteenheden in plaats van pixels.                                                                      |
+| B4    | Treinen verspringen als er een zone opengaat.                                                                                                                                            | Positie hermappen op station-id (was lokaal al opgelost).                                                                                                                                  |
+| B5    | Zones kunnen in elke volgorde open; treinen rijden dan over niet-bestaand spoor naar onbereikbare eilanden.                                                                              | Zone alleen te openen als hij aansluit op een open zone.                                                                                                                                   |
+| B8    | Een lijn springt over dicht spoor: Zuid 3 open en West 2 dicht laat lijn C van Schiedam C. rechtstreeks naar Tussenwater rijden. Zit er al in sinds fase 0 (gevonden door Coen, 24 sep). | Een lijn rijdt alleen over een aaneengesloten stuk open spoor; bij een gat rijdt hij op het stuk dat aan het centrum vastzit. B5 alleen lost dit niet op: Zuid 3 sluit via lijn D wél aan. |
+| ✅ B6 | Overvol-timer van een station wordt niet gewist als het station helemaal leegloopt; later weer vol betekent direct game over.                                                            | Timer wissen voor elk station dat niet (meer) overvol is.                                                                                                                                  |
+| ✅ B7 | Na game over hervat de pauzeknop de simulatie.                                                                                                                                           | Pauze blokkeren na game over.                                                                                                                                                              |
 
 Balans (in dezelfde fase, meetbaar maken):
 
