@@ -1,0 +1,97 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #F3F4F6;
+    color: #1F2937;
+    overflow: hidden;
+}
+
+/* RET Corporate Colors */
+:root {
+    --ret-red: #C20019;
+    --ret-blue: #003D86;
+}
+
+/* UI Elements */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #F3F4F6;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #D1D5DB;
+    border-radius: 3px;
+}
+
+.btn-ret {
+    background-color: white;
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: all 0.15s ease;
+}
+
+.btn-ret:hover:not(:disabled) {
+    border-color: #D1D5DB;
+    background-color: #F9FAFB;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.btn-ret:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+.btn-ret:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: #F3F4F6;
+}
+
+.btn-control {
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.btn-control:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Modal Overlay */
+.modal-overlay {
+    background-color: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(2px);
+}
+
+/* Pause Overlay */
+.pause-overlay {
+    background-color: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(4px);
+}
+
+canvas {
+    /* No pixelated rendering for smoother look */
+}
+
+/* Notification entry animation (used by notify() via animate-[fadeIn_...]) */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}

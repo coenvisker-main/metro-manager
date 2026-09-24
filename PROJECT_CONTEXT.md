@@ -10,11 +10,15 @@ Geen build stap nodig — direct openen in browser.
 Stabiel. `Metro_Manager_v2_Backup.html` is de backup van v2.
 
 ## Architectuur
-- `Metro_Manager_v2.html` — alles-in-één HTML/JS/CSS bestand
-- `Metro_Manager_v2_Backup.html` — backup
+- `Metro_Manager_v2.html` — HTML-shell die `css/style.css` + de `js/`-bestanden laadt
+- `css/style.css`, `js/{data,utils,Train,ui,game}.js` — gemodulariseerde bron
+- `Metro_Manager_v2_Backup.html` — self-contained referentie (oude inline versie)
 
 ## Gebruik
-Gewoon openen in browser. Geen server of dependencies nodig.
+Serveer via een statische server (bijv. `python -m http.server`) en open in de browser.
+`file://` werkt niet met de losse JS-bestanden (module/pad-restricties).
 
 ## Laatste wijzigingen
-_[bijwerken bij relevante commits]_
+- Modularisatie afgemaakt: inline code uit de backup opgesplitst naar `css/` + `js/`,
+  waardoor `Metro_Manager_v2.html` weer werkt (verwees eerder naar niet-bestaande bestanden).
+- Ontbrekende `@keyframes fadeIn` toegevoegd aan de CSS.
