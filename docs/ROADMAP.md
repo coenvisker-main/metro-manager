@@ -31,6 +31,7 @@ Legenda: ✅ klaar · 🔜 volgende · ⏳ gepland · ❓ nog uitzoeken
 - Debugmenu alleen in dev-modus (`npm run dev`).
 - Tests: netwerkdata, simulatie, spelersacties, en de bekende bugs als `it.fails` in `tests/known-bugs.test.ts`.
 - CI (lint, format, typecheck, tests, build) en automatische deploy naar GitHub Pages.
+- Speelbare versie zonder installatie: CI levert bij elke run een los `metro-manager.html` (werklaptop zonder adminrechten).
 
 ## 🔜 Fase 2: simulatiekern herbouwen
 
