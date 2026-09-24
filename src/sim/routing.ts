@@ -1,55 +1,66 @@
-import { ROUTES_DEF, STATIONS, getStation, type Zones } from '../data/network';
+import { ROUTES_DEF, getStation, type Zones } from '../data/network';
 import type { GameState } from './types';
 
-/**
- * Eerstvolgende halte op het kortste pad (in haltes) van start naar eind,
- * over alle ontgrendelde lijnen. Geeft null als er geen pad is.
- */
-export function findNextStation(zones: Zones, startId: string, endId: string): string | null {
-  if (startId === endId) return null;
-
-  const graph = new Map<string, string[]>();
-  for (const s of STATIONS) {
-    if (zones[s.zone].unlocked) graph.set(s.id, []);
-  }
-
-  for (const route of ROUTES_DEF) {
-    for (let i = 0; i < route.path.length - 1; i++) {
-      const s1 = route.path[i]!;
-      const s2 = route.path[i + 1]!;
-      if (zones[getStation(s1).zone].unlocked && zones[getStation(s2).zone].unlocked) {
-        graph.get(s1)?.push(s2);
-        graph.get(s2)?.push(s1);
-      }
-    }
-  }
-
-  const queue: string[][] = [[startId]];
-  const visited = new Set<string>([startId]);
-
-  while (queue.length > 0) {
-    const path = queue.shift()!;
-    const node = path[path.length - 1]!;
-
-    if (node === endId) {
-      return path[1] ?? null;
-    }
-
-    for (const neighbor of graph.get(node) ?? []) {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        queue.push([...path, neighbor]);
-      }
-    }
-  }
-  return null;
+/** Sleutel die verandert zodra er een zone opengaat; voor caches. */
+export function zonesKey(zones: Zones): string {
+  return Object.values(zones)
+    .map((z) => (z.unlocked ? '1' : '0'))
+    .join('');
 }
 
+/** De haltes van een lijn in open zones, in rijvolgorde. Zonder waypoints: die zijn alleen knikpunten in het spoor. */
+export function getLineStops(zones: Zones, routeIdx: number): string[] {
+  return getUnlockedPath(zones, routeIdx).filter((id) => getStation(id).type !== 'waypoint');
+}
+
+let componentsCache: { key: string; component: Map<string, number> } | null = null;
+
+/** Deelt de open haltes in groepen die via spoor met elkaar verbonden zijn, los van waar metro's rijden. */
+function trackComponents(zones: Zones): Map<string, number> {
+  const key = zonesKey(zones);
+  if (componentsCache?.key === key) return componentsCache.component;
+
+  const neighbours = new Map<string, string[]>();
+  ROUTES_DEF.forEach((_, routeIdx) => {
+    const stops = getLineStops(zones, routeIdx);
+    for (let i = 0; i < stops.length - 1; i++) {
+      const a = stops[i]!;
+      const b = stops[i + 1]!;
+      neighbours.set(a, [...(neighbours.get(a) ?? []), b]);
+      neighbours.set(b, [...(neighbours.get(b) ?? []), a]);
+    }
+  });
+
+  const component = new Map<string, number>();
+  let next = 0;
+  for (const start of neighbours.keys()) {
+    if (component.has(start)) continue;
+    const stack = [start];
+    component.set(start, next);
+    while (stack.length > 0) {
+      for (const n of neighbours.get(stack.pop()!) ?? []) {
+        if (!component.has(n)) {
+          component.set(n, next);
+          stack.push(n);
+        }
+      }
+    }
+    next++;
+  }
+
+  componentsCache = { key, component };
+  return component;
+}
+
+/** Zijn twee verschillende haltes via spoor verbonden? Of er metro's rijden, maakt niet uit. */
 export function areStationsConnected(zones: Zones, startId: string, endId: string): boolean {
-  return findNextStation(zones, startId, endId) !== null;
+  if (startId === endId) return false;
+  const component = trackComponents(zones);
+  const a = component.get(startId);
+  return a !== undefined && a === component.get(endId);
 }
 
-/** De ontgrendelde stations van een lijn, in rijvolgorde. */
+/** De ontgrendelde stations van een lijn, in rijvolgorde (inclusief waypoints). */
 export function getUnlockedPath(zones: Zones, routeIdx: number): string[] {
   const route = ROUTES_DEF[routeIdx];
   if (!route) return [];

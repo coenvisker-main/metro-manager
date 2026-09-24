@@ -63,7 +63,8 @@ export function unlockAll(game: Game): void {
 }
 
 export function passenger(game: Game, from: string, to: string): Passenger {
-  const p: Passenger = { from, to, spawnTime: game.now(), isTransfer: false };
+  const now = game.now();
+  const p: Passenger = { from, to, origin: from, tripStart: now, waitingSince: now, isTransfer: false };
   game.state.waitingPassengers.push(p);
   return p;
 }

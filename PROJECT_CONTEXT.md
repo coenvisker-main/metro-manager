@@ -18,7 +18,8 @@ dan 10 seconden overvol is.
 ## Status
 
 - Fase 0 en 1 afgerond (september 2026): één codebasis op `main`, Vite + TypeScript, tests, CI en deploy.
-- Fase 2 loopt in deel-PR's. 2a (tijdmodel: spelklok, vaste tijdstap, kaarteenheden) is klaar.
+- Fase 2 loopt in deel-PR's. 2a (tijdmodel: spelklok, vaste tijdstap, kaarteenheden) en 2b (waypoints en
+  reisplanner) zijn klaar.
   De overige bekende bugs staan als falende tests in `tests/known-bugs.test.ts`.
 - Details en planning: `docs/ROADMAP.md`.
 
@@ -28,6 +29,8 @@ dan 10 seconden overvol is.
 - Simulatie (`src/sim/`) staat los van DOM en canvas; klok en toeval zijn injecteerbaar.
 - Tijd: `Game.frame()` meet de wandklok en tikt de simulatie in vaste stappen van 1/60 s (`Game.step()`) op de
   spelklok `state.time`. Afstanden rekent de simulatie in kaarteenheden (`mapDistance`), niet in pixels.
+- Reizen: `JourneyPlanner` (`src/sim/planner.ts`) kiest per reiziger de route met de minste overstappen via lijnen
+  waar een metro rijdt. Een reiziger zit in de metro tot zijn overstap- of eindhalte (`alightAt`).
 - Renderer (`src/render/`) en UI (`src/ui/`) lezen de spelstaat; `src/main.ts` verbindt alles.
 
 ## Geschiedenis
