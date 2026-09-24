@@ -1,6 +1,6 @@
 # Claude Code instructies: Metro Manager
 
-Lees eerst `PROJECT_CONTEXT.md` en `docs/ROADMAP.md`.
+Lees eerst `HANDOFF.md` (overdracht van de vorige sessie), `PROJECT_CONTEXT.md` en `docs/ROADMAP.md`.
 Lokaal ook: `C:\Users\chvis\Projects\_GLOBAL_CONTEXT.md` voor globale conventies (niet in deze repo).
 
 ## Werkafspraken
