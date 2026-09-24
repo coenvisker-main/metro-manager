@@ -18,13 +18,16 @@ dan 10 seconden overvol is.
 ## Status
 
 - Fase 0 en 1 afgerond (september 2026): één codebasis op `main`, Vite + TypeScript, tests, CI en deploy.
-- Het spel heeft nog de bekende bugs uit de review; die staan als falende tests klaar voor fase 2.
+- Fase 2 loopt in deel-PR's. 2a (tijdmodel: spelklok, vaste tijdstap, kaarteenheden) is klaar.
+  De overige bekende bugs staan als falende tests in `tests/known-bugs.test.ts`.
 - Details en planning: `docs/ROADMAP.md`.
 
 ## Architectuur
 
 - Vite + TypeScript, Tailwind 4, Vitest. Speelbare versie via GitHub Pages.
 - Simulatie (`src/sim/`) staat los van DOM en canvas; klok en toeval zijn injecteerbaar.
+- Tijd: `Game.frame()` meet de wandklok en tikt de simulatie in vaste stappen van 1/60 s (`Game.step()`) op de
+  spelklok `state.time`. Afstanden rekent de simulatie in kaarteenheden (`mapDistance`), niet in pixels.
 - Renderer (`src/render/`) en UI (`src/ui/`) lezen de spelstaat; `src/main.ts` verbindt alles.
 
 ## Geschiedenis

@@ -27,7 +27,8 @@ Tot nu toe bereikt:
   - CI plus deploy naar GitHub Pages; debugmenu alleen in dev.
 - PR #2 (gemerged): `npm run build:single` levert één `metro-manager.html`, die CI als artifact uploadt (zonder zip).
   Coen heeft bevestigd dat het bestand op zijn werklaptop werkt.
-- De deploy naar Pages is geslaagd: https://coenvisker-main.github.io/metro-manager/. Of Coen de link op zijn werklaptop kan openen: [niet geverifieerd].
+- De deploy naar Pages is geslaagd: https://coenvisker-main.github.io/metro-manager/. Coen heeft bevestigd dat de link op zijn werklaptop werkt.
+- Fase 2 opgedeeld in 2a–2d (akkoord Coen). PR voor 2a (tijdmodel, B3/B6/B7, plus U1) staat open; zie `docs/ROADMAP.md` voor de besluiten.
 
 Wat werkte:
 
@@ -107,13 +108,10 @@ Essentiële Data:
 
 Openstaande acties:
 
-- [ ] Fase 2 opdelen in kleine PR's en door Coen laten bevestigen. Voorstel:
-  - 2a: tijdmodel (B3, B6, B7);
-  - 2b: waypoints en reisplanner (B1, B2);
-  - 2c: zones (B4, B5);
-  - 2d: balans-config en bot-simulatie.
+- [x] Fase 2 opgedeeld (akkoord): 2a tijdmodel (B3, B6, B7), 2b waypoints en reisplanner (B1, B2),
+      2c zones (B4, B5), 2d balans-config en bot-simulatie.
+- [ ] 2a: PR laten mergen na test door Coen. Daarna 2b.
 - [ ] Na elke deel-PR: CI groen, en Coen test via het artifact `metro-manager.html`.
-- [ ] Coen vragen of https://coenvisker-main.github.io/metro-manager/ opent op zijn werklaptop [niet geverifieerd].
 - [ ] `.claude/settings.json` bevat `mcpServers` met `@modelcontextprotocol/server-github`.
   - Vermoedelijk leest Claude Code dit daar niet uit, en het package is mogelijk verouderd [niet geverifieerd].
   - Eerst met Coen afstemmen, niet zelf wijzigen.
@@ -121,4 +119,4 @@ Openstaande acties:
 - [ ] Optioneel: een devcontainer voor GitHub Codespaces, als Coen zelf wil ontwikkelen zonder lokale Node.
 - [ ] Onbekend of Coens lokale clone al op `main` staat [niet geverifieerd]. Bij lokaal werk eerst `git status` laten checken.
 
-Directe vervolgstap: Lees `CLAUDE.md`, `docs/ROADMAP.md` en `tests/known-bugs.test.ts`, leg Coen de opdeling van fase 2 in deel-PR's (2a–2d) voor, en begin na zijn akkoord met 2a (tijdmodel).
+Directe vervolgstap: Controleer of de PR van 2a gemerged is. Zo ja: begin 2b (waypoints en reisplanner, B1/B2). Stel eerst het ontwerp van de reisplanner voor aan Coen: dat verandert het speelgedrag.

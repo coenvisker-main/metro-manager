@@ -27,6 +27,10 @@ export class Ui {
 
   bind(): void {
     el('btn-pause').addEventListener('click', () => this.togglePause());
+    // Tab weg of venster geminimaliseerd: automatisch pauzeren. Hervatten doet de speler zelf.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && !this.game.state.paused) this.togglePause();
+    });
     el('btn-restart').addEventListener('click', () => el('restart-modal').classList.remove('hidden'));
     el('btn-restart-cancel').addEventListener('click', () => this.closeRestartModal());
     el('btn-restart-confirm').addEventListener('click', () => this.resetGame());
@@ -207,9 +211,15 @@ export class Ui {
     }
   }
 
-  /** BEKENDE BUG (fase 3): geen controle op game over, en reset herstelt de pauzeknop niet. */
   togglePause(): void {
-    const paused = this.game.togglePause();
+    if (this.game.state.gameOver) return;
+    this.game.togglePause();
+    this.syncPauseState();
+  }
+
+  /** Zet pauzescherm en pauzeknop gelijk aan de spelstaat. */
+  private syncPauseState(): void {
+    const paused = this.game.state.paused && !this.game.state.gameOver;
     const btn = el('btn-pause');
     el('pause-overlay').classList.toggle('hidden', !paused);
     btn.innerHTML = paused ? '<span>▶</span> Hervat' : '<span>⏸</span> Pauze';
@@ -223,6 +233,7 @@ export class Ui {
 
   resetGame(): void {
     this.game.reset();
+    this.syncPauseState();
     this.closeRestartModal();
     el('game-over-modal').classList.add('hidden');
     this.renderer.markDirty();
@@ -234,9 +245,10 @@ export class Ui {
     el('game-over-reason').innerText = reason;
     el('final-score').innerText = String(score);
 
-    const duration = this.game.now() - this.game.state.startTime;
-    const minutes = Math.floor(duration / 60000);
-    const seconds = Math.floor((duration % 60000) / 1000);
+    // Speltijd zonder pauzes. Afronden, want 60 stappen van 1/60 s komen net onder de 1000 ms uit.
+    const totalSeconds = Math.round(this.game.state.time / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
     el('final-time').innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 
     el('game-over-modal').classList.remove('hidden');

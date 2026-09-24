@@ -1,4 +1,5 @@
 import { getStation } from '../data/network';
+import { MAP_HEIGHT, MAP_WIDTH } from './config';
 
 export interface ScreenPos {
   /** Positie inclusief lijn-offset. */
@@ -9,10 +10,16 @@ export interface ScreenPos {
   baseY: number;
 }
 
+/** Afstand tussen twee stations in kaarteenheden, onafhankelijk van de schermgrootte. */
+export function mapDistance(fromId: string, toId: string): number {
+  const a = getStation(fromId);
+  const b = getStation(toId);
+  return Math.hypot((b.x - a.x) * MAP_WIDTH, (b.y - a.y) * MAP_HEIGHT);
+}
+
 /**
- * Vertaalt genormaliseerde stationscoördinaten naar pixels.
- * Let op: de simulatie rekent (nog) in pixels, dus de spelbalans hangt af van de canvasgrootte.
- * Dat is een bekende bug die in fase 2 verdwijnt.
+ * Vertaalt genormaliseerde stationscoördinaten naar pixels, voor het tekenen en voor
+ * de plek van meldingen. De simulatie rekent zelf in kaarteenheden (`mapDistance`).
  */
 export class Layout {
   // Standaardgrootte van een <canvas> voordat die geschaald wordt.

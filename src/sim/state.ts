@@ -1,8 +1,8 @@
 import type { GameState } from './types';
 
-export function createInitialState(now: number): GameState {
+export function createInitialState(): GameState {
   return {
-    startTime: now,
+    time: 0,
     paused: false,
     gameOver: false,
     money: 600,
