@@ -1,6 +1,7 @@
 import { ROUTES_DEF, getStation, type ZoneId } from '../data/network';
 import type { Renderer } from '../render/renderer';
 import { GAME_CONFIG } from '../sim/config';
+import { unlockPrerequisites } from '../sim/routing';
 import type { Game } from '../sim/game';
 import type { PopupType, UpgradeType } from '../sim/types';
 
@@ -92,8 +93,16 @@ export class Ui {
     box.appendChild(line);
   }
 
-  updateWaitingCount(): void {
-    el('waiting-count').innerText = String(this.game.state.waitingPassengers.length);
+  /** Tellers die elk frame veranderen. Totaal sinds de start. */
+  updateLiveStats(): void {
+    const { state } = this.game;
+    el('waiting-count').innerText = String(state.waitingPassengers.length);
+    el('expired-count').innerText = String(state.passengersExpired);
+    el('transfer-count').innerText = String(state.transfers);
+    el('avg-travel-time').innerText =
+      state.passengersTransported > 0
+        ? `${Math.round(state.totalTravelTime / state.passengersTransported / 1000)} s`
+        : '–';
   }
 
   /** Werkt de hele zijbalk bij. BEKENDE BUG (fase 3): bouwt de uitbreidingslijst bij elke geldmutatie opnieuw op. */
@@ -124,16 +133,18 @@ export class Ui {
     for (const key of Object.keys(zones) as ZoneId[]) {
       if (key === 'centrum') continue;
       const zone = zones[key];
+      const connects = zone.unlocked || this.game.canUnlockZone(key);
       const row = document.createElement('div');
       row.className = `flex justify-between items-center p-3 rounded-lg border ${zone.unlocked ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`;
       row.innerHTML = `
             <div>
                 <div class="font-bold text-xs ${zone.unlocked ? 'text-green-700' : 'text-gray-700'}">${zone.name}</div>
                 <div class="text-[10px] text-gray-400">${zone.unlocked ? 'Operationeel' : 'Kosten: €' + zone.cost}</div>
+                ${connects ? '' : `<div class="text-[10px] text-[#C20019]">${this.missingConnectionText(key)}</div>`}
             </div>
             ${
               !zone.unlocked
-                ? `<button data-zone="${key}" class="btn-ret px-3 py-1 text-[10px] font-bold text-[#003D86] hover:bg-blue-50" ${state.money < zone.cost ? 'disabled' : ''}>BOUW</button>`
+                ? `<button data-zone="${key}" class="btn-ret px-3 py-1 text-[10px] font-bold text-[#003D86] hover:bg-blue-50" ${state.money < zone.cost || !connects ? 'disabled' : ''}>BOUW</button>`
                 : '<span class="text-green-600 text-sm">✔</span>'
             }
         `;
@@ -142,6 +153,13 @@ export class Ui {
 
     const showWarning = state.reputation < GAME_CONFIG.REP_WARNING_THRESHOLD && !state.gameOver;
     el('reputation-warning').classList.toggle('hidden', !showWarning);
+  }
+
+  /** Uitleg waarom een zone nog niet open kan. */
+  private missingConnectionText(key: ZoneId): string {
+    const zones = this.game.zones;
+    const first = unlockPrerequisites(zones, key).map((z) => zones[z].name);
+    return first.length > 0 ? `Open eerst: ${first.join(' of ')}` : 'Sluit nog niet aan op het netwerk';
   }
 
   switchTab(tab: 'manage' | 'expand'): void {

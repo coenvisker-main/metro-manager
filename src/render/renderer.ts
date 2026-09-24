@@ -1,7 +1,8 @@
-import { LABEL_CFG, MAJOR_STATIONS, ROUTES_DEF, STATIONS, getStation } from '../data/network';
+import { LABEL_CFG, MAJOR_STATIONS, ROUTES_DEF, STATIONS } from '../data/network';
 import { GAME_CONFIG } from '../sim/config';
 import type { Game } from '../sim/game';
 import { Layout } from '../sim/layout';
+import { getUnlockedPath } from '../sim/routing';
 
 const FONT_FAMILY = "'Inter Variable', Inter, sans-serif";
 
@@ -49,7 +50,6 @@ export class Renderer {
   private prerenderMap(game: Game): void {
     const ctx = this.mapCtx;
     const layout = this.layout;
-    const unlocked = (id: string) => game.zones[getStation(id).zone].unlocked;
 
     ctx.clearRect(0, 0, this.mapCanvas.width, this.mapCanvas.height);
     ctx.lineCap = 'round';
@@ -69,29 +69,20 @@ export class Renderer {
       ctx.stroke();
     }
 
-    // Gekleurde lijnen over geopende delen
-    for (const route of ROUTES_DEF) {
+    // Gekleurde lijnen over het stuk waar de lijn echt rijdt (aaneengesloten open spoor vanaf het centrum)
+    ROUTES_DEF.forEach((route, routeIdx) => {
+      const path = getUnlockedPath(game.zones, routeIdx);
+      if (path.length < 2) return;
       ctx.lineWidth = 6;
       ctx.strokeStyle = route.color;
       ctx.beginPath();
-      let penDown = false;
-      for (let i = 0; i < route.path.length - 1; i++) {
-        const id1 = route.path[i]!;
-        const id2 = route.path[i + 1]!;
-        if (unlocked(id1) && unlocked(id2)) {
-          const p1 = layout.pos(id1, route.offset);
-          const p2 = layout.pos(id2, route.offset);
-          if (!penDown) {
-            ctx.moveTo(p1.x, p1.y);
-            penDown = true;
-          }
-          ctx.lineTo(p2.x, p2.y);
-        } else {
-          penDown = false;
-        }
-      }
+      path.forEach((id, i) => {
+        const p = layout.pos(id, route.offset);
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
       ctx.stroke();
-    }
+    });
 
     // Stations met naam
     for (const station of STATIONS) {
