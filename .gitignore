@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-single/
 coverage/
 .env
 .claude/settings.local.json

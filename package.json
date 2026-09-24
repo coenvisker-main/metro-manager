@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:single": "vite build --mode single && node -e \"require('fs').renameSync('dist-single/index.html', 'dist-single/metro-manager.html')\"",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -33,6 +34,7 @@
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.70.1",
     "vite": "^8.3.0",
+    "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^5.0.1"
   }
 }
