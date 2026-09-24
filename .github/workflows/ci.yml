@@ -23,3 +23,10 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Speelbare versie zonder installatie: één HTML-bestand, te downloaden onder "Artifacts" van deze run.
+      - run: npm run build:single
+      - uses: actions/upload-artifact@v7
+        with:
+          path: dist-single/metro-manager.html
+          archive: false
+          retention-days: 30

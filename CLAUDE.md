@@ -7,7 +7,12 @@ Lokaal ook: `C:\Users\chvis\Projects\_GLOBAL_CONTEXT.md` voor globale conventies
 
 - `main` op GitHub is de enige bron van waarheid. Geen losse kopieën of backupbestanden; git is de backup.
 - Begin elke sessie met `git pull`, werk op een eigen branch, lever op via een PR naar `main`, en push aan het eind.
-- CI moet groen zijn voordat er gemerged wordt: `npm run check` lokaal doet hetzelfde.
+- CI moet groen zijn voordat er gemerged wordt: `npm run check` doet hetzelfde.
+- Coens werklaptop heeft geen adminrechten, dus daar staat geen Node.js. Ontwikkelen en testen gebeurt in
+  cloud-sessies (Claude Code op het web) en in CI. Een lokale sessie zonder Node wijzigt alleen tekst en
+  data, en laat CI de controle doen. Geen omwegen om bedrijfsregels heen (zoals een portable Node).
+- Coen probeert wijzigingen uit via de speelbare versie: `main` op GitHub Pages, een PR via het
+  downloadbare `metro-manager.html` bij de CI-run (onder "Artifacts").
 - Commit-e-mail: het GitHub-noreply-adres (`262769031+coenvisker-main@users.noreply.github.com`), anders weigert GitHub de push.
 - Human-in-the-loop: nieuwe features en spelontwerp eerst voorstellen en met Coen afstemmen. Bugfixes uit de roadmap mogen direct.
 - Kleine, testbare iteraties. Eerst correctheid, dan features.
@@ -18,6 +23,7 @@ Lokaal ook: `C:\Users\chvis\Projects\_GLOBAL_CONTEXT.md` voor globale conventies
 - `npm install` eenmalig (Node.js 22.12 of nieuwer).
 - `npm run dev`: ontwikkelserver met debugmenu (http://localhost:5173).
 - `npm run check`: format, lint, typecheck, tests en build.
+- `npm run build:single`: alles in één HTML-bestand (`dist-single/metro-manager.html`), te openen met dubbelklikken.
 - `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run format`.
 
 ## Structuur
