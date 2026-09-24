@@ -5,6 +5,7 @@ import type { Train } from './train';
 export interface Passenger {
   from: string;
   to: string;
+  /** Speltijd (ms) waarop de reiziger verscheen. */
   spawnTime: number;
   isTransfer: boolean;
   /** Gezet bij instappen: de halte waar de reiziger uitstapt. */
@@ -24,7 +25,8 @@ export interface UpgradeCosts {
 export type UpgradeType = 'speed' | 'capacity' | 'comfort' | 'marketing';
 
 export interface GameState {
-  startTime: number;
+  /** Speltijd in ms sinds de start. Staat stil tijdens pauze en na game over. */
+  time: number;
   paused: boolean;
   gameOver: boolean;
   money: number;
@@ -39,7 +41,7 @@ export interface GameState {
   lastSpawnTime: number;
   lastSubsidyTime: number;
   trainCounts: number[];
-  /** stationId -> tijdstip waarop het station overvol raakte. */
+  /** stationId -> speltijd (ms) waarop het station overvol raakte. */
   overloadedStations: Record<string, number>;
   costs: UpgradeCosts;
 }
@@ -51,6 +53,7 @@ export interface SimContext {
   readonly state: GameState;
   readonly zones: Zones;
   readonly layout: Layout;
+  /** Speltijd in ms. */
   now(): number;
   random(): number;
   addMoney(amount: number): void;

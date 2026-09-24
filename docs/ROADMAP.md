@@ -37,6 +37,24 @@ Legenda: ✅ klaar · 🔜 volgende · ⏳ gepland · ❓ nog uitzoeken
 
 Doel: alle tests in `tests/known-bugs.test.ts` groen, zonder de spelbeleving te slopen.
 
+Opgedeeld in deel-PR's (afgestemd met Coen, 24 sep 2026):
+
+| Deel | Bugs       | Inhoud                                              | Status |
+| ---- | ---------- | --------------------------------------------------- | ------ |
+| 2a   | B3, B6, B7 | Tijdmodel: spelklok, vaste tijdstap, kaarteenheden  | ✅     |
+| 2b   | B1, B2     | Waypoints puur visueel, reisplanner met etappes     | 🔜     |
+| 2c   | B4, B5     | Zones: trein blijft op zijn plek, alleen aansluiten | ⏳     |
+| 2d   | –          | Balans-config en bot-simulatie                      | ⏳     |
+
+Besluiten 2a:
+
+- De simulatie loopt in vaste stappen van 1/60 s op een spelklok (`state.time`) die stilstaat bij pauze en game over.
+  Een frame haalt hooguit 250 ms in (`MAX_FRAME_MS`), dus een haperende browser springt niet vooruit.
+- Afstanden in kaarteenheden: de kaart is 1200×800 eenheden. Het tempo (treinen, afstandsbonus) is gelijk aan dat van
+  vóór fase 2 op een speelveld van 1200×800 bij 60 fps, en nu op elk scherm en elke framerate hetzelfde.
+- Tab weg of venster geminimaliseerd: het spel pauzeert automatisch. Hervatten doet de speler zelf.
+  Alleen naar een ander venster klikken (zonder minimaliseren) pauzeert niet.
+
 **Over te nemen uit branch `claude/ecstatic-williams-7cbd73`** (commit `e200308`). Die branch wordt niet
 gemerged: hij heeft geen gemeenschappelijke geschiedenis met `main` en bevat een oudere spelversie
 (38 stations, geen waypoints, geen game over). De ideeën worden in TypeScript opnieuw gebouwd, met tests:
@@ -53,15 +71,15 @@ gemerged: hij heeft geen gemeenschappelijke geschiedenis met `main` en bevat een
 
 Let op: ook die branch stapt nog op elke tussenhalte uit en in (B2 zit er ook in).
 
-| ID  | Probleem                                                                                                                                                   | Aanpak                                                                                                                                                                |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | Reizigers spawnen op onzichtbare waypoints, en reizigers met een waypoint als volgende halte blijven eeuwig in de trein zitten.                            | Waypoints worden puur visueel: niet in spawn, niet in de routegraaf.                                                                                                  |
-| B2  | Reizigers stappen op elke tussenhalte uit en in (+€2 per halte); de afstandsbonus telt alleen de laatste halte.                                            | Reisplanner: reis als reeks (lijn, uitstaphalte). Alleen overstappen waar de lijn wisselt. Idee uit de lokale branch: alleen routeren via lijnen waar treinen rijden. |
-| B3  | Tijdmodel: snelheid hangt af van framerate en schermgrootte; pauze en tab-wissel laten reizigers massaal verlopen; overvol-timer loopt door tijdens pauze. | Vaste tijdstap op een spelklok (`gameTime`) die stilstaat bij pauze. Afstanden in kaarteenheden in plaats van pixels.                                                 |
-| B4  | Treinen verspringen als er een zone opengaat.                                                                                                              | Positie hermappen op station-id (was lokaal al opgelost).                                                                                                             |
-| B5  | Zones kunnen in elke volgorde open; treinen rijden dan over niet-bestaand spoor naar onbereikbare eilanden.                                                | Zone alleen te openen als hij aansluit op een open zone.                                                                                                              |
-| B6  | Overvol-timer van een station wordt niet gewist als het station helemaal leegloopt; later weer vol betekent direct game over.                              | Timer wissen voor elk station dat niet (meer) overvol is.                                                                                                             |
-| B7  | Na game over hervat de pauzeknop de simulatie.                                                                                                             | Pauze blokkeren na game over.                                                                                                                                         |
+| ID    | Probleem                                                                                                                                                   | Aanpak                                                                                                                                                                |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1    | Reizigers spawnen op onzichtbare waypoints, en reizigers met een waypoint als volgende halte blijven eeuwig in de trein zitten.                            | Waypoints worden puur visueel: niet in spawn, niet in de routegraaf.                                                                                                  |
+| B2    | Reizigers stappen op elke tussenhalte uit en in (+€2 per halte); de afstandsbonus telt alleen de laatste halte.                                            | Reisplanner: reis als reeks (lijn, uitstaphalte). Alleen overstappen waar de lijn wisselt. Idee uit de lokale branch: alleen routeren via lijnen waar treinen rijden. |
+| ✅ B3 | Tijdmodel: snelheid hangt af van framerate en schermgrootte; pauze en tab-wissel laten reizigers massaal verlopen; overvol-timer loopt door tijdens pauze. | Vaste tijdstap op een spelklok (`gameTime`) die stilstaat bij pauze. Afstanden in kaarteenheden in plaats van pixels.                                                 |
+| B4    | Treinen verspringen als er een zone opengaat.                                                                                                              | Positie hermappen op station-id (was lokaal al opgelost).                                                                                                             |
+| B5    | Zones kunnen in elke volgorde open; treinen rijden dan over niet-bestaand spoor naar onbereikbare eilanden.                                                | Zone alleen te openen als hij aansluit op een open zone.                                                                                                              |
+| ✅ B6 | Overvol-timer van een station wordt niet gewist als het station helemaal leegloopt; later weer vol betekent direct game over.                              | Timer wissen voor elk station dat niet (meer) overvol is.                                                                                                             |
+| ✅ B7 | Na game over hervat de pauzeknop de simulatie.                                                                                                             | Pauze blokkeren na game over.                                                                                                                                         |
 
 Balans (in dezelfde fase, meetbaar maken):
 
@@ -70,20 +88,20 @@ Balans (in dezelfde fase, meetbaar maken):
   gaat uitbreiden na ~10 minuten failliet.
 - "Frequentie verhogen" maakt het spel netto moeilijker (meer spawn, minder geduld). ❓ afgeleid uit code, niet gesimuleerd.
 - De fooi is vrijwel gratis: de drempel gebruikt ongeschaald geduld.
-- Restant in `Game.frame()` dat alleen een toevalsgetal verbruikt: weghalen.
+- ✅ Restant in `Game.frame()` dat alleen een toevalsgetal verbruikt: weggehaald in 2a.
 
 ## ⏳ Fase 3: UI en weergave
 
-| ID  | Punt                                                                                                        |
-| --- | ----------------------------------------------------------------------------------------------------------- |
-| U1  | Reset tijdens pauze: pauzescherm blijft staan en de knop werkt omgekeerd.                                   |
-| U2  | Na game over blijft de zijbalk bruikbaar (modal dekt alleen de kaart).                                      |
-| U3  | Comfort-upgrade meldt "+€3.00" maar geeft €2.                                                               |
-| U4  | `updateUI()` bouwt de uitbreidingslijst bij elke geldmutatie opnieuw op (lokaal al opgelost met een split). |
-| U5  | Canvas scherp op hoge-DPI-schermen (`devicePixelRatio`).                                                    |
-| U6  | Parallelle lijnen loodrecht op het spoor verschuiven in plaats van diagonaal.                               |
-| U7  | Laten zien welke lijn of zone onbediend is.                                                                 |
-| U8  | Werkt op mobiel en tablet (nodig voor een release).                                                         |
+| ID    | Punt                                                                                                        |
+| ----- | ----------------------------------------------------------------------------------------------------------- |
+| ✅ U1 | Reset tijdens pauze: pauzescherm blijft staan en de knop werkt omgekeerd.                                   |
+| U2    | Na game over blijft de zijbalk bruikbaar (modal dekt alleen de kaart).                                      |
+| U3    | Comfort-upgrade meldt "+€3.00" maar geeft €2.                                                               |
+| U4    | `updateUI()` bouwt de uitbreidingslijst bij elke geldmutatie opnieuw op (lokaal al opgelost met een split). |
+| U5    | Canvas scherp op hoge-DPI-schermen (`devicePixelRatio`).                                                    |
+| U6    | Parallelle lijnen loodrecht op het spoor verschuiven in plaats van diagonaal.                               |
+| U7    | Laten zien welke lijn of zone onbediend is.                                                                 |
+| U8    | Werkt op mobiel en tablet (nodig voor een release).                                                         |
 
 ## ⏳ Fase 4: winnen met de campagne "RET door de jaren"
 

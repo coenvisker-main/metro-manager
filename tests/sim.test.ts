@@ -1,8 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { GAME_CONFIG } from '../src/sim/config';
+import { GAME_CONFIG, MAX_FRAME_MS } from '../src/sim/config';
 import { areStationsConnected, findNextStation, getUnlockedPath } from '../src/sim/routing';
 import { Train } from '../src/sim/train';
 import { createTestGame, passenger, quiet } from './helpers';
+
+/** Aantal keer dat een trein een station bereikt in `seconds` speltijd. */
+function countArrivals(opts: { fps?: number; width?: number; height?: number }, seconds: number): number {
+  const t = createTestGame({ width: opts.width, height: opts.height });
+  quiet(t.game);
+  const train = new Train(t.game, 3, 'cs');
+  t.game.state.trains = [train];
+  let arrivals = 0;
+  let last = train.currentStationIndex;
+  t.runSeconds(seconds, opts.fps ?? 60, () => {
+    if (train.currentStationIndex !== last) {
+      arrivals++;
+      last = train.currentStationIndex;
+    }
+  });
+  return arrivals;
+}
 
 describe('beginstaat', () => {
   it('start met €600, 100% tevredenheid en metro D en A', () => {
@@ -66,6 +83,119 @@ describe('simulatie', () => {
     const before = t.game.state.trains.map((tr) => [tr.currentStationIndex, tr.progress]);
     t.runSeconds(10);
     expect(t.game.state.trains.map((tr) => [tr.currentStationIndex, tr.progress])).toEqual(before);
+  });
+});
+
+describe('tijdmodel', () => {
+  it('de spelklok loopt gelijk op met de wandklok, bij elke framerate', () => {
+    for (const fps of [30, 60, 144]) {
+      const t = createTestGame();
+      t.runSeconds(10, fps);
+      expect(t.game.state.time).toBeCloseTo(10_000, -2);
+    }
+  });
+
+  it('treinsnelheid is onafhankelijk van de framerate (30, 60 en 144 fps)', () => {
+    const at60 = countArrivals({ fps: 60 }, 60);
+    expect(at60).toBeGreaterThan(5);
+    expect(Math.abs(countArrivals({ fps: 30 }, 60) - at60)).toBeLessThanOrEqual(1);
+    expect(Math.abs(countArrivals({ fps: 144 }, 60) - at60)).toBeLessThanOrEqual(1);
+  });
+
+  it('treinsnelheid is onafhankelijk van de schermgrootte', () => {
+    const small = countArrivals({ width: 900, height: 600 }, 60);
+    const large = countArrivals({ width: 1800, height: 1200 }, 60);
+    expect(Math.abs(small - large)).toBeLessThanOrEqual(1);
+  });
+
+  it('het hele spel verloopt gelijk op elke schermgrootte (ook de afstandsbonus)', () => {
+    const small = createTestGame({ seed: 7, width: 900, height: 600 });
+    const large = createTestGame({ seed: 7, width: 1800, height: 1200 });
+    small.runSeconds(120);
+    large.runSeconds(120);
+    expect(small.game.state.passengersTransported).toBeGreaterThan(0);
+    expect(large.game.state.money).toBe(small.game.state.money);
+    expect(large.game.state.passengersTransported).toBe(small.game.state.passengersTransported);
+  });
+
+  it('de spelklok staat stil tijdens pauze', () => {
+    const t = createTestGame();
+    t.runSeconds(1);
+    const before = t.game.state.time;
+    t.game.togglePause();
+    t.runSeconds(30);
+    expect(t.game.state.time).toBe(before);
+    t.game.togglePause();
+    t.runSeconds(1);
+    expect(t.game.state.time).toBeCloseTo(before + 1000, -2);
+  });
+
+  it('een sprong in de wandklok (tab weg, haperende browser) wordt niet ingehaald', () => {
+    const t = createTestGame();
+    t.run(1);
+    const before = t.game.state.time;
+    t.advance(10 * 60_000);
+    t.game.frame();
+    expect(t.game.state.time - before).toBeLessThanOrEqual(MAX_FRAME_MS);
+  });
+
+  it('een lange pauze laat wachtende reizigers niet verlopen', () => {
+    const t = createTestGame();
+    quiet(t.game);
+    t.game.state.trains = [];
+    for (let i = 0; i < 10; i++) passenger(t.game, 'cs', 'beurs');
+    t.game.togglePause();
+    t.runSeconds(45);
+    t.game.togglePause();
+    t.run(1);
+    expect(t.game.state.reputation).toBe(100);
+  });
+
+  it('de overvol-timer staat stil tijdens pauze', () => {
+    const t = createTestGame();
+    quiet(t.game);
+    t.game.state.trains = [];
+    for (let i = 0; i < GAME_CONFIG.MAX_STATION_CAPACITY; i++) passenger(t.game, 'beurs', 'blaak');
+    t.run(1);
+    t.game.togglePause();
+    t.runSeconds(15);
+    expect(t.game.state.gameOver).toBe(false);
+  });
+
+  it('de overvol-timer begint opnieuw als een overvol station helemaal leegloopt', () => {
+    const t = createTestGame();
+    quiet(t.game);
+    t.game.state.trains = [];
+    t.game.state.passengerPatience = 10_000_000;
+    const fill = () => {
+      for (let i = 0; i < GAME_CONFIG.MAX_STATION_CAPACITY; i++) passenger(t.game, 'beurs', 'blaak');
+    };
+    fill();
+    t.run(1);
+    t.game.state.waitingPassengers = [];
+    t.runSeconds(20);
+    fill();
+    t.run(1);
+    expect(t.game.state.gameOver).toBe(false);
+  });
+
+  it('na game over kan de simulatie niet met de pauzeknop hervat worden', () => {
+    const t = createTestGame();
+    t.game.triggerGameOver('test');
+    const before = t.game.state.time;
+    expect(t.game.togglePause()).toBe(true);
+    expect(t.game.state.paused).toBe(true);
+    t.runSeconds(5);
+    expect(t.game.state.time).toBe(before);
+  });
+
+  it('een nieuw spel begint weer bij speltijd 0', () => {
+    const t = createTestGame();
+    t.runSeconds(5);
+    t.game.reset();
+    expect(t.game.state.time).toBe(0);
+    t.runSeconds(1);
+    expect(t.game.state.time).toBeCloseTo(1000, -2);
   });
 });
 

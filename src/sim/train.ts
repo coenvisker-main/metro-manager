@@ -1,4 +1,6 @@
 import { ROUTES_DEF, getStation, type RouteDef } from '../data/network';
+import { GAME_CONFIG, STEP_MS } from './config';
+import { mapDistance } from './layout';
 import { findNextStation } from './routing';
 import type { Passenger, SimContext } from './types';
 
@@ -22,6 +24,7 @@ export class Train {
   progress = 0;
   passengers: Passenger[] = [];
   state: TrainMode = 'MOVING';
+  /** Resterende stilstand bij een station, in ms speltijd. */
   boardingTimer = 0;
 
   constructor(
@@ -81,12 +84,14 @@ export class Train {
     }
   }
 
-  update(): void {
+  /** Laat de trein `dt` ms speltijd rijden of stilstaan. */
+  update(dt: number): void {
     if (this.activePath.length < 2) return;
 
     if (this.state === 'BOARDING') {
-      this.boardingTimer--;
-      if (this.boardingTimer <= 0) this.depart();
+      this.boardingTimer -= dt;
+      // Kleine marge tegen afrondingsfouten, zodat de stilstand een vast aantal stappen duurt.
+      if (this.boardingTimer <= 1e-6) this.depart();
       return;
     }
 
@@ -94,16 +99,12 @@ export class Train {
     const targetStationId = this.activePath[this.targetStationIndex];
     if (!currentStationId || !targetStationId) return;
 
-    const p1 = this.ctx.layout.pos(currentStationId);
-    const p2 = this.ctx.layout.pos(targetStationId);
-    const dx = p2.baseX - p1.baseX;
-    const dy = p2.baseY - p1.baseY;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+    const distance = mapDistance(currentStationId, targetStationId);
 
-    // Snelheid genormaliseerd op een "eenheidsafstand" van 80px.
+    // `globalSpeed` is de voortgang per stap van 1/60 s over een "eenheidsafstand" van 80 kaarteenheden.
     const normalizedSpeed = this.ctx.state.globalSpeed * (80 / Math.max(20, distance));
 
-    this.progress += normalizedSpeed;
+    this.progress += normalizedSpeed * (dt / STEP_MS);
     if (this.progress >= 1) this.arrive();
   }
 
@@ -141,7 +142,7 @@ export class Train {
     }
 
     this.state = 'BOARDING';
-    this.boardingTimer = 30;
+    this.boardingTimer = GAME_CONFIG.BOARDING_TIME;
     this.progress = 0;
 
     const offloading: Passenger[] = [];
@@ -159,13 +160,8 @@ export class Train {
           const travelTime = this.ctx.now() - p.spawnTime;
           const tip = travelTime < state.passengerPatience * 0.7 ? 5 : 0;
 
-          // Afstandsbonus
-          const startPos = layout.pos(p.from);
-          const endPos = layout.pos(currentStationId);
-          const dist = Math.sqrt(
-            Math.pow(endPos.baseX - startPos.baseX, 2) + Math.pow(endPos.baseY - startPos.baseY, 2),
-          );
-          const distanceBonus = Math.floor(dist * 0.1); // ca. €0,10 per pixel
+          // Afstandsbonus: €0,10 per kaarteenheid hemelsbreed (afgerond naar beneden).
+          const distanceBonus = Math.floor(mapDistance(p.from, currentStationId) * 0.1);
 
           totalEarnings += state.baseTicketPrice + distanceBonus + tip;
           state.passengersTransported++;

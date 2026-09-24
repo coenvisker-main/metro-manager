@@ -20,7 +20,7 @@ export interface TestGame {
   run(n: number, dt?: number, onFrame?: (i: number) => void): void;
   /** Laat `seconds` speltijd lopen op 60 fps. */
   runSeconds(seconds: number, fps?: number, onFrame?: (i: number) => void): void;
-  /** Zet de klok vooruit zonder frames. */
+  /** Zet de wandklok vooruit zonder frames. */
   advance(ms: number): void;
 }
 
@@ -30,7 +30,7 @@ export function createTestGame(
   let now = 1_000_000;
   const layout = new Layout();
   layout.resize(options.width ?? 1200, options.height ?? 800);
-  const game = new Game({ layout, now: () => now, random: seededRandom(options.seed ?? 1) });
+  const game = new Game({ layout, clock: () => now, random: seededRandom(options.seed ?? 1) });
   if (options.initialTrains ?? true) game.spawnInitialTrains();
 
   const run = (n: number, dt = 1000 / 60, onFrame?: (i: number) => void) => {

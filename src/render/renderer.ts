@@ -189,7 +189,7 @@ export class Renderer {
 
       // Aftellende ring bij overvolle stations
       const overloadedSince = state.overloadedStations[station.id];
-      if (overloadedSince) {
+      if (overloadedSince !== undefined) {
         const elapsed = now - overloadedSince;
         const remaining = Math.max(0, GAME_CONFIG.OVERLOAD_GRACE_PERIOD - elapsed);
         const pct = remaining / GAME_CONFIG.OVERLOAD_GRACE_PERIOD;

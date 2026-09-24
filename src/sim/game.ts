@@ -1,5 +1,5 @@
 import { STATIONS, cloneZones, getStation, type ZoneId, type Zones } from '../data/network';
-import { BASE_SPEED, GAME_CONFIG, INITIAL_TRAIN_ROUTES } from './config';
+import { BASE_SPEED, GAME_CONFIG, INITIAL_TRAIN_ROUTES, MAX_FRAME_MS, STEP_MS } from './config';
 import { Layout } from './layout';
 import { areStationsConnected, getTrainCost, getUnlockedPath } from './routing';
 import { createInitialState } from './state';
@@ -14,8 +14,8 @@ export interface GameHooks {
 
 export interface GameOptions {
   layout?: Layout;
-  /** Klok in ms. Standaard de wandklok; tests geven een nep-klok mee. */
-  now?: () => number;
+  /** Wandklok in ms, alleen gebruikt om de verstreken tijd per frame te meten. Tests geven een nep-klok mee. */
+  clock?: () => number;
   /** Toevalsgenerator in [0, 1). Standaard Math.random; tests geven een seed-versie mee. */
   random?: () => number;
   hooks?: GameHooks;
@@ -23,7 +23,10 @@ export interface GameOptions {
 
 /**
  * De volledige spelsimulatie, zonder DOM of canvas.
- * Wordt één keer per animatieframe getikt via `frame()`.
+ *
+ * `frame()` wordt één keer per animatieframe aangeroepen en meet de verstreken wandkloktijd.
+ * De simulatie zelf loopt in vaste stappen van `STEP_MS` op een eigen spelklok (`state.time`),
+ * zodat het spel even snel loopt bij 30, 60 of 144 fps, en stilstaat tijdens pauze.
  */
 export class Game implements SimContext {
   state: GameState;
@@ -32,18 +35,24 @@ export class Game implements SimContext {
   hooks: GameHooks;
   private readonly clock: () => number;
   private readonly rng: () => number;
+  /** Wandkloktijd van het vorige frame. */
+  private lastClock: number;
+  /** Verstreken tijd die nog niet in simulatiestappen is omgezet. */
+  private accumulator = 0;
 
   constructor(options: GameOptions = {}) {
     this.layout = options.layout ?? new Layout();
-    this.clock = options.now ?? (() => Date.now());
+    this.clock = options.clock ?? (() => performance.now());
     this.rng = options.random ?? (() => Math.random());
     this.hooks = options.hooks ?? {};
     this.zones = cloneZones();
-    this.state = createInitialState(this.now());
+    this.state = createInitialState();
+    this.lastClock = this.clock();
   }
 
+  /** Speltijd in ms. */
   now(): number {
-    return this.clock();
+    return this.state.time;
   }
 
   random(): number {
@@ -69,7 +78,8 @@ export class Game implements SimContext {
   /** Nieuw spel: zones dicht, beginstaat, starttreinen. */
   reset(): void {
     this.zones = cloneZones();
-    this.state = createInitialState(this.now());
+    this.state = createInitialState();
+    this.accumulator = 0;
     this.spawnInitialTrains();
   }
 
@@ -103,51 +113,64 @@ export class Game implements SimContext {
     });
   }
 
-  /** Eén simulatiestap. BEKENDE BUG (fase 2): stapgrootte hangt af van de framerate. */
+  /** Aanroepen per animatieframe: zet de verstreken wandkloktijd om in vaste simulatiestappen. */
   frame(): void {
-    const state = this.state;
+    const clockNow = this.clock();
+    const elapsed = Math.min(Math.max(0, clockNow - this.lastClock), MAX_FRAME_MS);
+    this.lastClock = clockNow;
 
-    if (!state.paused) {
-      const now = this.now();
-
-      // Hogere snelheid betekent ook sneller spawnen en minder geduld (tijd loopt "sneller").
-      const speedFactor = state.globalSpeed / BASE_SPEED;
-
-      const baseSpawnRate = 1000 / (1 + this.unlockedStationCount * 0.05);
-      const spawnRate = baseSpawnRate / speedFactor;
-
-      if (now - state.lastSpawnTime > spawnRate) {
-        if (this.random() > 0.3) this.spawnPassenger();
-        state.lastSpawnTime = now;
-      }
-
-      // Subsidie elke 10 s, afhankelijk van tevredenheid (voorkomt vastlopen zonder geld).
-      if (!state.lastSubsidyTime) state.lastSubsidyTime = now;
-      if (now - state.lastSubsidyTime > 10000) {
-        const subsidy = Math.floor(state.reputation * 1.5);
-        if (subsidy > 0) {
-          this.addMoney(subsidy);
-          this.popup(`+€${subsidy} Subsidie`, this.layout.width / 2, 50, 'subsidy');
-        }
-        state.lastSubsidyTime = now;
-      }
-
-      const effectivePatience = state.passengerPatience / speedFactor;
-      for (let i = state.waitingPassengers.length - 1; i >= 0; i--) {
-        const p = state.waitingPassengers[i]!;
-        if (now - p.spawnTime > effectivePatience) {
-          state.waitingPassengers.splice(i, 1);
-          state.reputation = Math.max(0, state.reputation - 1);
-          // Restant van een uitgezette boos-popup; verbruikt alleen een toevalsgetal.
-          // Blijft staan zodat deze port exact gelijk loopt met het origineel (weg in fase 2).
-          this.random();
-        }
-      }
-
-      for (const t of state.trains) t.update();
+    if (this.state.paused || this.state.gameOver) {
+      this.accumulator = 0;
+      return;
     }
 
-    // BEKENDE BUG (fase 2): draait ook tijdens pauze, dus de overvol-timer loopt door.
+    this.accumulator += elapsed;
+    // Kleine marge tegen afrondingsfouten, anders valt er af en toe een stap tussen twee frames.
+    while (this.accumulator >= STEP_MS - 1e-6 && !this.state.paused) {
+      this.accumulator -= STEP_MS;
+      this.step();
+    }
+  }
+
+  /** Eén vaste simulatiestap van `STEP_MS` speltijd. */
+  step(): void {
+    const state = this.state;
+    state.time += STEP_MS;
+    const now = state.time;
+
+    // Hogere snelheid betekent ook sneller spawnen en minder geduld (tijd loopt "sneller").
+    const speedFactor = state.globalSpeed / BASE_SPEED;
+
+    const baseSpawnRate = 1000 / (1 + this.unlockedStationCount * 0.05);
+    const spawnRate = baseSpawnRate / speedFactor;
+
+    if (now - state.lastSpawnTime > spawnRate) {
+      if (this.random() > 0.3) this.spawnPassenger();
+      state.lastSpawnTime = now;
+    }
+
+    // Subsidie elke 10 s, afhankelijk van tevredenheid (voorkomt vastlopen zonder geld).
+    if (!state.lastSubsidyTime) state.lastSubsidyTime = now;
+    if (now - state.lastSubsidyTime > 10000) {
+      const subsidy = Math.floor(state.reputation * 1.5);
+      if (subsidy > 0) {
+        this.addMoney(subsidy);
+        this.popup(`+€${subsidy} Subsidie`, this.layout.width / 2, 50, 'subsidy');
+      }
+      state.lastSubsidyTime = now;
+    }
+
+    const effectivePatience = state.passengerPatience / speedFactor;
+    for (let i = state.waitingPassengers.length - 1; i >= 0; i--) {
+      const p = state.waitingPassengers[i]!;
+      if (now - p.spawnTime > effectivePatience) {
+        state.waitingPassengers.splice(i, 1);
+        state.reputation = Math.max(0, state.reputation - 1);
+      }
+    }
+
+    for (const t of state.trains) t.update(STEP_MS);
+
     this.checkSurvivalRules();
   }
 
@@ -163,18 +186,20 @@ export class Game implements SimContext {
     const counts: Record<string, number> = {};
     for (const p of state.waitingPassengers) counts[p.from] = (counts[p.from] ?? 0) + 1;
 
+    // Een station dat niet (meer) overvol is, ook een leeg station, begint later weer bij nul.
+    for (const stationId of Object.keys(state.overloadedStations)) {
+      if ((counts[stationId] ?? 0) < GAME_CONFIG.MAX_STATION_CAPACITY) delete state.overloadedStations[stationId];
+    }
+
     const now = this.now();
     for (const [stationId, count] of Object.entries(counts)) {
+      if (count < GAME_CONFIG.MAX_STATION_CAPACITY) continue;
       const overloadedSince = state.overloadedStations[stationId];
-      if (count >= GAME_CONFIG.MAX_STATION_CAPACITY) {
-        if (!overloadedSince) {
-          state.overloadedStations[stationId] = now;
-        } else if (now - overloadedSince > GAME_CONFIG.OVERLOAD_GRACE_PERIOD) {
-          this.triggerGameOver(`Station ${getStation(stationId).name} is gesloten door de politie wegens verdrukking.`);
-          return;
-        }
-      } else if (overloadedSince) {
-        delete state.overloadedStations[stationId];
+      if (overloadedSince === undefined) {
+        state.overloadedStations[stationId] = now;
+      } else if (now - overloadedSince > GAME_CONFIG.OVERLOAD_GRACE_PERIOD) {
+        this.triggerGameOver(`Station ${getStation(stationId).name} is gesloten door de politie wegens verdrukking.`);
+        return;
       }
     }
   }
@@ -243,8 +268,9 @@ export class Game implements SimContext {
     return true;
   }
 
-  /** Wisselt pauze. BEKENDE BUG (fase 2): werkt ook na game over, waardoor de simulatie weer loopt. */
+  /** Wisselt pauze. Na game over blijft het spel stilstaan. */
   togglePause(): boolean {
+    if (this.state.gameOver) return this.state.paused;
     this.state.paused = !this.state.paused;
     return this.state.paused;
   }
