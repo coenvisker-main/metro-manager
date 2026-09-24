@@ -1,17 +1,22 @@
 import type { Zones } from '../data/network';
 import type { Layout } from './layout';
+import type { JourneyPlanner } from './planner';
 import type { Train } from './train';
 
 export interface Passenger {
+  /** Station waar de reiziger nu wacht (na een overstap het overstapstation). */
   from: string;
+  /** Eindbestemming. */
   to: string;
-  /** Speltijd (ms) waarop de reiziger verscheen. */
-  spawnTime: number;
+  /** Station waar de reis begon. */
+  origin: string;
+  /** Speltijd (ms) waarop de reis begon. */
+  tripStart: number;
+  /** Speltijd (ms) sinds de reiziger op dit perron wacht. Het geduld telt vanaf hier. */
+  waitingSince: number;
   isTransfer: boolean;
-  /** Gezet bij instappen: de halte waar de reiziger uitstapt. */
-  nextDest?: string;
-  /** Gezet bij instappen: de eindbestemming. */
-  finalDest?: string;
+  /** Gezet bij instappen: de halte waar de reiziger uitstapt (overstap- of eindhalte). */
+  alightAt?: string;
 }
 
 export interface UpgradeCosts {
@@ -53,6 +58,7 @@ export interface SimContext {
   readonly state: GameState;
   readonly zones: Zones;
   readonly layout: Layout;
+  readonly planner: JourneyPlanner;
   /** Speltijd in ms. */
   now(): number;
   random(): number;

@@ -42,8 +42,8 @@ Opgedeeld in deel-PR's (afgestemd met Coen, 24 sep 2026):
 | Deel | Bugs       | Inhoud                                              | Status |
 | ---- | ---------- | --------------------------------------------------- | ------ |
 | 2a   | B3, B6, B7 | Tijdmodel: spelklok, vaste tijdstap, kaarteenheden  | ✅     |
-| 2b   | B1, B2     | Waypoints puur visueel, reisplanner met etappes     | 🔜     |
-| 2c   | B4, B5     | Zones: trein blijft op zijn plek, alleen aansluiten | ⏳     |
+| 2b   | B1, B2     | Waypoints puur visueel, reisplanner met etappes     | ✅     |
+| 2c   | B4, B5     | Zones: trein blijft op zijn plek, alleen aansluiten | 🔜     |
 | 2d   | –          | Balans-config en bot-simulatie                      | ⏳     |
 
 Besluiten 2a:
@@ -54,6 +54,29 @@ Besluiten 2a:
   vóór fase 2 op een speelveld van 1200×800 bij 60 fps, en nu op elk scherm en elke framerate hetzelfde.
 - Tab weg of venster geminimaliseerd: het spel pauzeert automatisch. Hervatten doet de speler zelf.
   Alleen naar een ander venster klikken (zonder minimaliseren) pauzeert niet.
+
+Besluiten 2b:
+
+- Waypoints zijn puur visueel: geen reizigers erop of ernaartoe, de planner slaat ze over.
+- Een reiziger verschijnt op een open station en wil naar een ander open station dat via spoor bereikbaar is,
+  ook als daar (nog) geen metro rijdt. Een onbediende lijn kost dus nog steeds tevredenheid.
+- Reisplanner (`src/sim/planner.ts`): de route met de minste overstappen, daarna de minste haltes, alleen via lijnen
+  waar een metro rijdt. Een reiziger stapt in de eerste metro die op zo'n route ligt en blijft zitten tot zijn
+  overstap- of eindhalte. Kan de hele reis niet, dan stapt hij niet in en verloopt hij.
+- Geduld telt de wachttijd op het perron en begint na een overstap opnieuw.
+- Opbrengst één keer bij aankomst: ticket + afstandsbonus hemelsbreed van begin- tot eindstation + fooi.
+  Geen geld per overstap. De fooi-drempel rekent nog met de hele reistijd (balans, 2d).
+
+Meting na 2b (5 min speltijd, seeds 1–3, ❗ scenario "alles open" is een stresstest, geen normaal spelverloop):
+
+| Scenario                       | Vóór 2b                                                  | Na 2b                                                      |
+| ------------------------------ | -------------------------------------------------------- | ---------------------------------------------------------- |
+| Startnetwerk, niets doen       | ~€10.300 excl. subsidie, ~560 vervoerd, loopt door       | ~€10.700 excl. subsidie, ~560 vervoerd, loopt door         |
+| Alles open, 2 metro's per lijn | ~€2.900 excl. subsidie, ~45 vervoerd, game over na ~62 s | ~€11.200 excl. subsidie, ~245 vervoerd, game over na ~96 s |
+
+Vóór 2b kwam in het tweede scenario ~60% van de inkomsten uit de €2-per-tussenhalte-bug. Na 2b is de bezetting
+maar ~25%: het netwerk loopt vast op wachttijd (effectief geduld 30 s tegen lange lijnen), niet op capaciteit.
+Dat is werk voor 2d.
 
 **Over te nemen uit branch `claude/ecstatic-williams-7cbd73`** (commit `e200308`). Die branch wordt niet
 gemerged: hij heeft geen gemeenschappelijke geschiedenis met `main` en bevat een oudere spelversie
@@ -73,8 +96,8 @@ Let op: ook die branch stapt nog op elke tussenhalte uit en in (B2 zit er ook in
 
 | ID    | Probleem                                                                                                                                                   | Aanpak                                                                                                                                                                |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1    | Reizigers spawnen op onzichtbare waypoints, en reizigers met een waypoint als volgende halte blijven eeuwig in de trein zitten.                            | Waypoints worden puur visueel: niet in spawn, niet in de routegraaf.                                                                                                  |
-| B2    | Reizigers stappen op elke tussenhalte uit en in (+€2 per halte); de afstandsbonus telt alleen de laatste halte.                                            | Reisplanner: reis als reeks (lijn, uitstaphalte). Alleen overstappen waar de lijn wisselt. Idee uit de lokale branch: alleen routeren via lijnen waar treinen rijden. |
+| ✅ B1 | Reizigers spawnen op onzichtbare waypoints, en reizigers met een waypoint als volgende halte blijven eeuwig in de trein zitten.                            | Waypoints worden puur visueel: niet in spawn, niet in de routegraaf.                                                                                                  |
+| ✅ B2 | Reizigers stappen op elke tussenhalte uit en in (+€2 per halte); de afstandsbonus telt alleen de laatste halte.                                            | Reisplanner: reis als reeks (lijn, uitstaphalte). Alleen overstappen waar de lijn wisselt. Idee uit de lokale branch: alleen routeren via lijnen waar treinen rijden. |
 | ✅ B3 | Tijdmodel: snelheid hangt af van framerate en schermgrootte; pauze en tab-wissel laten reizigers massaal verlopen; overvol-timer loopt door tijdens pauze. | Vaste tijdstap op een spelklok (`gameTime`) die stilstaat bij pauze. Afstanden in kaarteenheden in plaats van pixels.                                                 |
 | B4    | Treinen verspringen als er een zone opengaat.                                                                                                              | Positie hermappen op station-id (was lokaal al opgelost).                                                                                                             |
 | B5    | Zones kunnen in elke volgorde open; treinen rijden dan over niet-bestaand spoor naar onbereikbare eilanden.                                                | Zone alleen te openen als hij aansluit op een open zone.                                                                                                              |

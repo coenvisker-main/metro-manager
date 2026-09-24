@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { GAME_CONFIG, MAX_FRAME_MS } from '../src/sim/config';
-import { areStationsConnected, findNextStation, getUnlockedPath } from '../src/sim/routing';
+import { STATIONS } from '../src/data/network';
+import { mapDistance } from '../src/sim/layout';
+import { areStationsConnected, getLineStops, getUnlockedPath } from '../src/sim/routing';
 import { Train } from '../src/sim/train';
-import { createTestGame, passenger, quiet } from './helpers';
+import { createTestGame, passenger, quiet, unlockAll } from './helpers';
+
+const WAYPOINTS = new Set(STATIONS.filter((s) => s.type === 'waypoint').map((s) => s.id));
 
 /** Aantal keer dat een trein een station bereikt in `seconds` speltijd. */
 function countArrivals(opts: { fps?: number; width?: number; height?: number }, seconds: number): number {
@@ -264,18 +268,153 @@ describe('verliescondities', () => {
 });
 
 describe('routing', () => {
-  it('vindt de eerstvolgende halte op het kortste pad', () => {
-    const { game } = createTestGame();
-    expect(findNextStation(game.zones, 'dijkzigt', 'oostplein')).toBe('eendracht');
-    expect(findNextStation(game.zones, 'cs', 'blaak')).toBe('stadhuis');
-    expect(findNextStation(game.zones, 'beurs', 'beurs')).toBeNull();
-  });
-
   it('stations in gesloten zones zijn onbereikbaar', () => {
     const { game } = createTestGame();
     expect(areStationsConnected(game.zones, 'beurs', 'zuidplein')).toBe(false);
     game.zones.kop_zuid.unlocked = true;
     game.zones.slinge.unlocked = true;
     expect(areStationsConnected(game.zones, 'beurs', 'zuidplein')).toBe(true);
+  });
+
+  it('de haltes van een lijn bevatten geen waypoints', () => {
+    const { game } = createTestGame();
+    unlockAll(game);
+    const path = getUnlockedPath(game.zones, 1);
+    const stops = getLineStops(game.zones, 1);
+    expect(path.some((id) => WAYPOINTS.has(id))).toBe(true);
+    expect(stops.some((id) => WAYPOINTS.has(id))).toBe(false);
+    expect(stops).toEqual(path.filter((id) => !WAYPOINTS.has(id)));
+  });
+});
+
+describe('reisplanner', () => {
+  it('plant alleen via lijnen waar een metro rijdt', () => {
+    const { game } = createTestGame();
+    game.state.trains = [new Train(game, 3, 'cs')];
+    expect(game.planner.canTravel('cs', 'beurs')).toBe(true);
+    expect(game.planner.canTravel('cs', 'oostplein')).toBe(false);
+    game.state.trains.push(new Train(game, 0, 'dijkzigt'));
+    expect(game.planner.canTravel('cs', 'oostplein')).toBe(true);
+  });
+
+  it('stapt over waar de lijn wisselt, niet eerder of later', () => {
+    const { game } = createTestGame();
+    game.state.trains = [new Train(game, 3, 'cs'), new Train(game, 0, 'dijkzigt')];
+    // Met D vanaf Centraal richting Leuvehaven: uitstappen op Beurs en daar overstappen op A.
+    expect(game.planner.alightStation('cs', 'oostplein', 3, ['stadhuis', 'beurs', 'leuvehaven'])).toBe('beurs');
+    // Een A-metro de verkeerde kant op: niet instappen.
+    expect(game.planner.alightStation('beurs', 'oostplein', 0, ['eendracht', 'dijkzigt'])).toBeNull();
+  });
+});
+
+describe('reizen', () => {
+  it('reizigers verschijnen nooit op of naar een onzichtbaar waypoint', () => {
+    const { game } = createTestGame();
+    unlockAll(game);
+    quiet(game);
+    for (let i = 0; i < 2000; i++) game.spawnPassenger();
+    const bad = game.state.waitingPassengers.filter((p) => WAYPOINTS.has(p.from) || WAYPOINTS.has(p.to));
+    expect(bad).toEqual([]);
+  });
+
+  it('reizigers verschijnen op een open station en willen naar een open, bereikbaar station', () => {
+    const { game } = createTestGame();
+    quiet(game);
+    game.zones.kop_zuid.unlocked = true;
+    game.zones.oost_1.unlocked = true;
+    for (let i = 0; i < 2000; i++) game.spawnPassenger();
+    const zoneOf = (id: string) => STATIONS.find((s) => s.id === id)!.zone;
+    expect(game.state.waitingPassengers.length).toBeGreaterThan(1000);
+    for (const p of game.state.waitingPassengers) {
+      expect(game.zones[zoneOf(p.from)].unlocked).toBe(true);
+      expect(game.zones[zoneOf(p.to)].unlocked).toBe(true);
+      expect(areStationsConnected(game.zones, p.from, p.to)).toBe(true);
+    }
+  });
+
+  it('een reiziger via een waypoint (Graskruid -> Romeynshof) komt aan', () => {
+    const t = createTestGame();
+    unlockAll(t.game);
+    quiet(t.game);
+    t.game.state.trains = [new Train(t.game, 0, 'alexander')];
+    passenger(t.game, 'graskruid', 'romeynshof');
+    t.runSeconds(60);
+    expect(t.game.state.passengersTransported).toBe(1);
+  });
+
+  it('een reiziger blijft zitten tot de bestemming en stapt niet op elke tussenhalte uit', () => {
+    const t = createTestGame();
+    quiet(t.game);
+    const train = new Train(t.game, 0, 'dijkzigt');
+    train.state = 'BOARDING';
+    train.boardingTimer = 1;
+    t.game.state.trains = [train];
+    passenger(t.game, 'dijkzigt', 'oostplein');
+    let transfers = 0;
+    t.runSeconds(30, 60, () => {
+      transfers += t.game.state.waitingPassengers.filter((p) => p.isTransfer).length;
+    });
+    expect(t.game.state.passengersTransported).toBe(1);
+    expect(transfers).toBe(0);
+  });
+
+  it('overstappen: Centraal -> Oostplein via Beurs, één keer betalen bij aankomst, geduld opnieuw op het perron', () => {
+    const t = createTestGame();
+    quiet(t.game);
+    t.game.state.trains = [new Train(t.game, 3, 'cs'), new Train(t.game, 0, 'dijkzigt')];
+    passenger(t.game, 'cs', 'oostplein');
+    const transferStations = new Set<string>();
+    const moneyChanges: number[] = [];
+    let money = t.game.state.money;
+    let restartedPatience = false;
+    t.runSeconds(60, 60, () => {
+      for (const p of t.game.state.waitingPassengers.filter((w) => w.isTransfer)) {
+        transferStations.add(p.from);
+        if (p.origin === 'cs' && p.waitingSince > p.tripStart) restartedPatience = true;
+      }
+      if (t.game.state.money !== money) {
+        moneyChanges.push(t.game.state.money - money);
+        money = t.game.state.money;
+      }
+    });
+    expect(t.game.state.passengersTransported).toBe(1);
+    expect([...transferStations]).toEqual(['beurs']);
+    expect(restartedPatience).toBe(true);
+    // Ticket €8 + afstandsbonus van begin- tot eindstation + fooi €5, in één keer.
+    expect(moneyChanges).toEqual([8 + Math.floor(mapDistance('cs', 'oostplein') * 0.1) + 5]);
+  });
+
+  it('zonder metro op de benodigde lijn stapt een reiziger niet in en verloopt hij', () => {
+    const t = createTestGame();
+    quiet(t.game);
+    t.game.zones.oost_1.unlocked = true;
+    t.game.zones.de_terp.unlocked = true;
+    const trainA = new Train(t.game, 0, 'beurs');
+    t.game.state.trains = [trainA];
+    passenger(t.game, 'beurs', 'slotlaan'); // Slotlaan ligt alleen aan lijn C
+    let boarded = false;
+    t.runSeconds(35, 60, () => {
+      if (trainA.passengers.length > 0) boarded = true;
+    });
+    expect(boarded).toBe(false);
+    expect(t.game.state.passengersTransported).toBe(0);
+    expect(t.game.state.reputation).toBe(99);
+  });
+
+  it('een directe lijn gaat voor een overstap (Beurs -> Hesseplaats met B, niet met A)', () => {
+    const t = createTestGame();
+    quiet(t.game);
+    for (const z of ['oost_1', 'binnenhof', 'nesselande'] as const) t.game.zones[z].unlocked = true;
+    t.game.state.passengerPatience = 10_000_000;
+    const trainA = new Train(t.game, 0, 'beurs');
+    const trainB = new Train(t.game, 1, 'beurs');
+    t.game.state.trains = [trainA, trainB];
+    passenger(t.game, 'beurs', 'hesseplaats');
+    let rodeA = false;
+    t.runSeconds(120, 60, () => {
+      if (trainA.passengers.length > 0) rodeA = true;
+    });
+    expect(rodeA).toBe(false);
+    expect(t.game.state.passengersTransported).toBe(1);
   });
 });

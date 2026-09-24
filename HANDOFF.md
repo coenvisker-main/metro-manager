@@ -28,7 +28,7 @@ Tot nu toe bereikt:
 - PR #2 (gemerged): `npm run build:single` levert één `metro-manager.html`, die CI als artifact uploadt (zonder zip).
   Coen heeft bevestigd dat het bestand op zijn werklaptop werkt.
 - De deploy naar Pages is geslaagd: https://coenvisker-main.github.io/metro-manager/. Coen heeft bevestigd dat de link op zijn werklaptop werkt.
-- Fase 2 opgedeeld in 2a–2d (akkoord Coen). PR voor 2a (tijdmodel, B3/B6/B7, plus U1) staat open; zie `docs/ROADMAP.md` voor de besluiten.
+- Fase 2 opgedeeld in 2a–2d (akkoord Coen). 2a (tijdmodel, B3/B6/B7, plus U1) is gemerged; 2b (waypoints en reisplanner, B1/B2) staat als PR open. Besluiten staan in `docs/ROADMAP.md`.
 
 Wat werkte:
 
@@ -110,7 +110,8 @@ Openstaande acties:
 
 - [x] Fase 2 opgedeeld (akkoord): 2a tijdmodel (B3, B6, B7), 2b waypoints en reisplanner (B1, B2),
       2c zones (B4, B5), 2d balans-config en bot-simulatie.
-- [ ] 2a: PR laten mergen na test door Coen. Daarna 2b.
+- [x] 2a gemerged (PR #4). Coen testte: treinsnelheid goed, pauze bij tab-wissel werkt.
+- [ ] 2b: PR laten mergen na test door Coen. Daarna 2c (B4, B5).
 - [ ] Na elke deel-PR: CI groen, en Coen test via het artifact `metro-manager.html`.
 - [ ] `.claude/settings.json` bevat `mcpServers` met `@modelcontextprotocol/server-github`.
   - Vermoedelijk leest Claude Code dit daar niet uit, en het package is mogelijk verouderd [niet geverifieerd].
@@ -119,4 +120,4 @@ Openstaande acties:
 - [ ] Optioneel: een devcontainer voor GitHub Codespaces, als Coen zelf wil ontwikkelen zonder lokale Node.
 - [ ] Onbekend of Coens lokale clone al op `main` staat [niet geverifieerd]. Bij lokaal werk eerst `git status` laten checken.
 
-Directe vervolgstap: Controleer of de PR van 2a gemerged is. Zo ja: begin 2b (waypoints en reisplanner, B1/B2). Stel eerst het ontwerp van de reisplanner voor aan Coen: dat verandert het speelgedrag.
+Directe vervolgstap: Controleer of de PR van 2b gemerged is. Zo ja: begin 2c (B4 trein hermappen op station-id, B5 zone alleen openen als hij aansluit). B5 raakt de UI (melding waarom een zone dicht blijft): stel die eerst voor aan Coen.

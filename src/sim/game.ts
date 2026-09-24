@@ -1,6 +1,7 @@
 import { STATIONS, cloneZones, getStation, type ZoneId, type Zones } from '../data/network';
 import { BASE_SPEED, GAME_CONFIG, INITIAL_TRAIN_ROUTES, MAX_FRAME_MS, STEP_MS } from './config';
 import { Layout } from './layout';
+import { JourneyPlanner } from './planner';
 import { areStationsConnected, getTrainCost, getUnlockedPath } from './routing';
 import { createInitialState } from './state';
 import { Train } from './train';
@@ -32,6 +33,7 @@ export class Game implements SimContext {
   state: GameState;
   zones: Zones;
   readonly layout: Layout;
+  readonly planner: JourneyPlanner;
   hooks: GameHooks;
   private readonly clock: () => number;
   private readonly rng: () => number;
@@ -47,6 +49,7 @@ export class Game implements SimContext {
     this.hooks = options.hooks ?? {};
     this.zones = cloneZones();
     this.state = createInitialState();
+    this.planner = new JourneyPlanner(this);
     this.lastClock = this.clock();
   }
 
@@ -87,8 +90,13 @@ export class Game implements SimContext {
     return STATIONS.filter((s) => this.zones[s.zone].unlocked).length;
   }
 
+  /**
+   * Laat een reiziger verschijnen op een open station, met als bestemming een ander open station dat via
+   * spoor bereikbaar is. Waypoints doen niet mee. Of er een metro rijdt, maakt niet uit: een onbediende
+   * lijn kost tevredenheid, dat is bewust.
+   */
   spawnPassenger(): void {
-    const unlockedStations = STATIONS.filter((s) => this.zones[s.zone].unlocked);
+    const unlockedStations = STATIONS.filter((s) => this.zones[s.zone].unlocked && s.type !== 'waypoint');
     if (unlockedStations.length < 2) return;
 
     const pick = () => unlockedStations[Math.floor(this.random() * unlockedStations.length)]!;
@@ -97,7 +105,7 @@ export class Game implements SimContext {
 
     for (let attempts = 0; attempts < 15; attempts++) {
       const candidate = pick();
-      if (candidate.id !== startNode.id && areStationsConnected(this.zones, startNode.id, candidate.id)) {
+      if (areStationsConnected(this.zones, startNode.id, candidate.id)) {
         endNode = candidate;
         break;
       }
@@ -105,10 +113,13 @@ export class Game implements SimContext {
 
     if (endNode.id === startNode.id) return;
 
+    const now = this.now();
     this.state.waitingPassengers.push({
       from: startNode.id,
       to: endNode.id,
-      spawnTime: this.now(),
+      origin: startNode.id,
+      tripStart: now,
+      waitingSince: now,
       isTransfer: false,
     });
   }
@@ -163,7 +174,7 @@ export class Game implements SimContext {
     const effectivePatience = state.passengerPatience / speedFactor;
     for (let i = state.waitingPassengers.length - 1; i >= 0; i--) {
       const p = state.waitingPassengers[i]!;
-      if (now - p.spawnTime > effectivePatience) {
+      if (now - p.waitingSince > effectivePatience) {
         state.waitingPassengers.splice(i, 1);
         state.reputation = Math.max(0, state.reputation - 1);
       }

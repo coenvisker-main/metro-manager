@@ -1,7 +1,6 @@
 import { ROUTES_DEF, getStation, type RouteDef } from '../data/network';
 import { GAME_CONFIG, STEP_MS } from './config';
 import { mapDistance } from './layout';
-import { findNextStation } from './routing';
 import type { Passenger, SimContext } from './types';
 
 type TrainMode = 'MOVING' | 'BOARDING';
@@ -148,7 +147,7 @@ export class Train {
     const offloading: Passenger[] = [];
     const staying: Passenger[] = [];
     for (const p of this.passengers) {
-      if (p.nextDest === currentStationId) offloading.push(p);
+      if (p.alightAt === currentStationId) offloading.push(p);
       else staying.push(p);
     }
 
@@ -156,24 +155,25 @@ export class Train {
       let totalEarnings = 0;
 
       for (const p of offloading) {
-        if (currentStationId === p.finalDest) {
-          const travelTime = this.ctx.now() - p.spawnTime;
+        if (currentStationId === p.to) {
+          // Eén keer betalen bij aankomst, voor de hele reis.
+          const travelTime = this.ctx.now() - p.tripStart;
           const tip = travelTime < state.passengerPatience * 0.7 ? 5 : 0;
 
-          // Afstandsbonus: €0,10 per kaarteenheid hemelsbreed (afgerond naar beneden).
-          const distanceBonus = Math.floor(mapDistance(p.from, currentStationId) * 0.1);
+          // Afstandsbonus: €0,10 per kaarteenheid hemelsbreed van begin- tot eindstation (afgerond naar beneden).
+          const distanceBonus = Math.floor(mapDistance(p.origin, p.to) * 0.1);
 
           totalEarnings += state.baseTicketPrice + distanceBonus + tip;
           state.passengersTransported++;
           state.reputation = Math.min(100, state.reputation + 0.2);
         } else {
-          // BEKENDE BUG (fase 2): reiziger stapt op elke tussenhalte uit en levert €2 op.
-          totalEarnings += 2;
+          // Overstap: wachten op het volgende perron. Het geduld begint hier opnieuw.
           state.waitingPassengers.push({
+            ...p,
             from: currentStationId,
-            to: p.finalDest ?? p.to,
-            spawnTime: p.spawnTime,
+            waitingSince: this.ctx.now(),
             isTransfer: true,
+            alightAt: undefined,
           });
         }
       }
@@ -189,37 +189,37 @@ export class Train {
     this.advanceTarget();
   }
 
+  /** De haltes die deze metro nog aandoet in zijn huidige rijrichting, tot het eindpunt. Zonder waypoints. */
+  private stopsAhead(): string[] {
+    const ahead: string[] = [];
+    for (let i = this.currentStationIndex + this.direction; i >= 0 && i < this.activePath.length; i += this.direction) {
+      const id = this.activePath[i]!;
+      if (getStation(id).type !== 'waypoint') ahead.push(id);
+    }
+    return ahead;
+  }
+
   private depart(): void {
-    const { state, zones } = this.ctx;
+    const { state, planner } = this.ctx;
     this.state = 'MOVING';
     const currentStationId = this.activePath[this.currentStationIndex]!;
 
     const peopleAtStation = state.waitingPassengers.filter((p) => p.from === currentStationId);
     const others = state.waitingPassengers.filter((p) => p.from !== currentStationId);
+    const ahead = this.stopsAhead();
 
     const boarding: Passenger[] = [];
     const leftBehind: Passenger[] = [];
 
+    // Wie het langst wacht, stapt als eerste in.
     for (const p of peopleAtStation) {
-      const nextHop = findNextStation(zones, currentStationId, p.to);
-      if (!nextHop) {
-        leftBehind.push(p);
-        continue;
-      }
-
-      const destIndex = this.activePath.indexOf(nextHop);
-      if (destIndex !== -1 && this.passengers.length + boarding.length < state.trainCapacity) {
-        const canBoard =
-          (this.direction === 1 && destIndex > this.currentStationIndex) ||
-          (this.direction === -1 && destIndex < this.currentStationIndex);
-
-        if (canBoard) {
-          p.nextDest = nextHop;
-          p.finalDest = p.to;
-          boarding.push(p);
-        } else {
-          leftBehind.push(p);
-        }
+      const alightAt =
+        this.passengers.length + boarding.length < state.trainCapacity
+          ? planner.alightStation(currentStationId, p.to, this.routeDefIndex, ahead)
+          : null;
+      if (alightAt) {
+        p.alightAt = alightAt;
+        boarding.push(p);
       } else {
         leftBehind.push(p);
       }
