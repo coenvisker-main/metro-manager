@@ -7,15 +7,15 @@ Legenda: ✅ klaar · 🔜 volgende · ⏳ gepland · ❓ nog uitzoeken
 
 ## Besluiten
 
-| Onderwerp        | Besluit                                                                                                                                                                                                                                      |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Codebasis        | De code van de oude `main` (realistische kaart met 71 stations, game over) is de basis. De lokale branch `claude/ecstatic-williams-7cbd73` bouwde voort op de oudere v2-backup en dient als referentie voor fixes. `master` is gearchiveerd. |
-| Techniek         | Vite + TypeScript + Vitest + Tailwind 4 (lokaal gebouwd), deploy via GitHub Pages.                                                                                                                                                           |
-| Werkwijze        | `main` is de enige bron van waarheid. Zie CLAUDE.md.                                                                                                                                                                                         |
-| Netwerk          | Realistisch RET-netwerk blijft het uitgangspunt.                                                                                                                                                                                             |
-| Onbediende zones | Een geopende zone zonder metro kost terecht tevredenheid. Bewust gedrag, geen bug.                                                                                                                                                           |
-| Winnen           | Hoofdmodus wordt de campagne "RET door de jaren". "Dienstdag" en "Mijlpalen" komen later als extra spelmodi.                                                                                                                                 |
-| Doelgroep        | Begint als hobby- en leerproject; bij enthousiasme mogelijk een release samen met RET marketing en communicatie.                                                                                                                             |
+| Onderwerp        | Besluit                                                                                                                                                                                                                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Codebasis        | De code van de oude `main` (realistische kaart met 71 stations, game over) is de basis. De lokale branch `claude/ecstatic-williams-7cbd73` bouwde voort op de oudere v2-backup en dient als referentie voor fixes. `master` is verwijderd; de geschiedenis ervan zit in die branch. |
+| Techniek         | Vite + TypeScript + Vitest + Tailwind 4 (lokaal gebouwd), deploy via GitHub Pages.                                                                                                                                                                                                  |
+| Werkwijze        | `main` is de enige bron van waarheid. Zie CLAUDE.md.                                                                                                                                                                                                                                |
+| Netwerk          | Realistisch RET-netwerk blijft het uitgangspunt.                                                                                                                                                                                                                                    |
+| Onbediende zones | Een geopende zone zonder metro kost terecht tevredenheid. Bewust gedrag, geen bug.                                                                                                                                                                                                  |
+| Winnen           | Hoofdmodus wordt de campagne "RET door de jaren". "Dienstdag" en "Mijlpalen" komen later als extra spelmodi.                                                                                                                                                                        |
+| Doelgroep        | Begint als hobby- en leerproject; bij enthousiasme mogelijk een release samen met RET marketing en communicatie.                                                                                                                                                                    |
 
 ## ✅ Fase 0: één bron van waarheid
 
@@ -35,6 +35,22 @@ Legenda: ✅ klaar · 🔜 volgende · ⏳ gepland · ❓ nog uitzoeken
 ## 🔜 Fase 2: simulatiekern herbouwen
 
 Doel: alle tests in `tests/known-bugs.test.ts` groen, zonder de spelbeleving te slopen.
+
+**Over te nemen uit branch `claude/ecstatic-williams-7cbd73`** (commit `e200308`). Die branch wordt niet
+gemerged: hij heeft geen gemeenschappelijke geschiedenis met `main` en bevat een oudere spelversie
+(38 stations, geen waypoints, geen game over). De ideeën worden in TypeScript opnieuw gebouwd, met tests:
+
+| Idee in die branch                                                              | Waar het hier landt |
+| ------------------------------------------------------------------------------- | ------------------- |
+| Vloot-graaf: alleen routeren via lijnen waar treinen rijden (`buildFleetGraph`) | B2 reisplanner      |
+| Spelklok `gameTime` die stilstaat bij pauze                                     | B3                  |
+| Delta-tijd (`frameScale`); hier wordt het een vaste tijdstap                    | B3                  |
+| Treinpositie hermappen op station-id bij zone-unlock                            | B4                  |
+| Caches voor graaf en stationsposities                                           | B2 / performance    |
+| `updateStats()` gescheiden van `renderExpansionList()`                          | U4                  |
+| Spawn- en restart-modal over het hele scherm                                    | U2                  |
+
+Let op: ook die branch stapt nog op elke tussenhalte uit en in (B2 zit er ook in).
 
 | ID  | Probleem                                                                                                                                                   | Aanpak                                                                                                                                                                |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
