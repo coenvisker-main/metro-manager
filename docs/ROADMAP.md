@@ -107,7 +107,7 @@ Besluiten 2d (25 sep):
   - **Drukte kost tevredenheid:** elk station dat meer dan half vol staat, kost elke 10 s 1% tevredenheid.
     Tevredenheid per aankomst omlaag naar +0,02, anders zakt hij nooit.
   - **Exploitatie per rijtuig** (€100 per rijtuig per minuut; een metro van 20 plaatsen is 2 rijtuigen).
-  - Toegevoegd door Claude, ter goedkeuring: **nieuwe zones trekken geleidelijk reizigers** (in 2 min naar vol; de
+  - Toegevoegd door Claude, goedgekeurd door Coen na speeltest 3: **nieuwe zones trekken geleidelijk reizigers** (in 2 min naar vol; de
     laatste zone, Den Haag met 14 stations, gaf anders een klif waar elke bot tegelijk op strandde) en
     **overstapstations zijn groter** (+20 plekken per extra lijn: Beurs 120, de stam 80), zodat goed spelen weer
     verschil maakt.
@@ -115,6 +115,19 @@ Besluiten 2d (25 sep):
   - Uitkomst (40 min, seeds 1–3): niets doen game over na ~6:07; blind kopen na ~12:00; beheerder (koopt alle
     upgrades) na 20:51–21:31. Geld stapelt laat in het potje nog steeds op (~€80–110k na 20 min): de inkomsten groeien
     mee met de vraag, de kosten zijn begrensd door het spoor. Open punt voor Coen.
+- Coen speelde een derde keer (25 sep): alles gekocht zonder geldproblemen en met tevredenheid op 100%, daarna nog
+  10 minuten laten lopen zonder iets te doen, en het volle netwerk kon het aan (vraag ×10,6, €258k, 0 verlopen).
+  Nagemeten met een bot die alles koopt wat kan (seeds 2–3): ook 32 metro's, ~€15k na 15 min, ~€278k na 25 min,
+  tevredenheid 100% tot het einde. Dan in één klap game over op Beurs, na 21–26 min. Wat het veroorzaakt:
+  - Geld heeft na ~15 min geen doel meer: alles is gekocht, de inkomsten groeien mee met de vraag.
+  - Tevredenheid zakt niet: +0,02 per aankomst bij ~1000 aankomsten per minuut weegt zwaarder dan de straf voor
+    drukte (hooguit −6 per minuut); met alle upgrades verloopt niemand.
+  - De Beurs-klap valt niet te voorkomen: ~95% van de wachtenden daar zijn overstappers, terwijl de metro's maar
+    8–24% vol zitten. De overstapstroom groeit mee met de vraag en het station niet.
+  - `tests/balance.test.ts` is groen, maar "de beheerder gaat binnen 40 minuten onderuit" gebeurt door die klap, niet
+    doordat het geleidelijk zwaarder wordt.
+    Besluit Coen: fase 2 is balans, geen nieuwe mechanismes. Het late spel gaat naar een volgende fase (zie fase 5).
+    2d-2 gaat zo de deur uit.
 
 Afspraken 2c (24 sep):
 
@@ -210,6 +223,12 @@ Balans (in dezelfde fase, meetbaar maken):
   ergens te hoog wordt. Aandachtspunt: alleen een netwerkbrede grens laat weer stapelen in het centrum toe; combineren
   met de gedeelde spoorcapaciteit per traject.
 - Extra spelmodi: Dienstdag (spits, evenementen) en Mijlpalen (eindeloos met doelen).
+- Het late spel (uit speeltest 3; in welke fase: nog kiezen met Coen). Na ~15 minuten valt er niks meer te kiezen,
+  geld stapelt op, tevredenheid blijft 100% en het einde is een onvermijdelijke klap op Beurs. Richtingen, nog niet
+  gekozen: stations uitbreiden (per station plekken kopen, oplopende prijs), kosten laten meegroeien met de vraag,
+  tevredenheid laten bewegen (minder per aankomst, meer straf voor drukte), overvol station kost tevredenheid in
+  plaats van direct game over. Ook de balanstests moeten dan het geleidelijke verloop meten, niet alleen het moment
+  van game over.
 
 ## ⏳ Fase 6: klaar voor een release
 
