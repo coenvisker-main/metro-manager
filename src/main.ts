@@ -26,7 +26,7 @@ function loop(): void {
   try {
     renderer.clear();
     game.frame();
-    ui.updateWaitingCount();
+    ui.updateLiveStats();
     renderer.render(game);
     requestAnimationFrame(loop);
   } catch (e) {

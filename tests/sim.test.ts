@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { GAME_CONFIG, MAX_FRAME_MS } from '../src/sim/config';
-import { STATIONS } from '../src/data/network';
+import { ROUTES_DEF, STATIONS, ZONES_DEF, type ZoneId } from '../src/data/network';
 import { mapDistance } from '../src/sim/layout';
-import { areStationsConnected, getLineStops, getUnlockedPath } from '../src/sim/routing';
+import {
+  areStationsConnected,
+  canUnlockZone,
+  getLineStops,
+  getUnlockedPath,
+  unlockPrerequisites,
+} from '../src/sim/routing';
 import { Train } from '../src/sim/train';
 import { createTestGame, passenger, quiet, unlockAll } from './helpers';
 
@@ -416,5 +422,134 @@ describe('reizen', () => {
     });
     expect(rodeA).toBe(false);
     expect(t.game.state.passengersTransported).toBe(1);
+  });
+});
+
+describe('zones en spoor', () => {
+  /** Opent steeds de eerste zone die kan, tot er niets meer kan. Geeft de volgorde terug. */
+  function openGreedily(game: ReturnType<typeof createTestGame>['game']): ZoneId[] {
+    const order: ZoneId[] = [];
+    for (;;) {
+      const next = (Object.keys(game.zones) as ZoneId[]).find((z) => game.canUnlockZone(z));
+      if (!next) return order;
+      game.state.money = 100_000;
+      expect(game.unlockZone(next)).toBe(true);
+      order.push(next);
+    }
+  }
+
+  it('een zone die niet aansluit op het netwerk kan niet geopend worden (Slinge zonder Kop van Zuid)', () => {
+    const { game } = createTestGame();
+    game.state.money = 10_000;
+    expect(game.unlockZone('slinge')).toBe(false);
+    expect(game.zones.slinge.unlocked).toBe(false);
+    expect(game.unlockZone('kop_zuid')).toBe(true);
+    expect(game.unlockZone('slinge')).toBe(true);
+  });
+
+  it('alle zones zijn in een aansluitende volgorde te openen, zonder eilanden', () => {
+    const { game } = createTestGame();
+    const order = openGreedily(game);
+    expect(order).toHaveLength(Object.keys(ZONES_DEF).length - 1);
+    expect(Object.values(game.zones).every((z) => z.unlocked)).toBe(true);
+  });
+
+  it('na elke uitbreiding ligt elk open station aan een lijn, en rijdt elke lijn over aaneengesloten open spoor', () => {
+    const { game } = createTestGame();
+    const check = () => {
+      const served = new Set(ROUTES_DEF.flatMap((_, i) => getLineStops(game.zones, i)));
+      for (const s of STATIONS) {
+        if (game.zones[s.zone].unlocked && s.type !== 'waypoint') expect(served.has(s.id)).toBe(true);
+      }
+      ROUTES_DEF.forEach((route, i) => {
+        const path = getUnlockedPath(game.zones, i);
+        const start = route.path.indexOf(path[0]!);
+        expect(route.path.slice(start, start + path.length)).toEqual(path);
+        expect(path.every((id) => game.zones[STATIONS.find((s) => s.id === id)!.zone].unlocked)).toBe(true);
+      });
+    };
+    check();
+    for (;;) {
+      const next = (Object.keys(game.zones) as ZoneId[]).find((z) => game.canUnlockZone(z));
+      if (!next) break;
+      game.state.money = 100_000;
+      game.unlockZone(next);
+      check();
+    }
+  });
+
+  it('lijn C springt niet over West 2 heen als Zuid 3 open is (B8)', () => {
+    const { game } = createTestGame();
+    for (const z of ['kop_zuid', 'slinge', 'spijkenisse'] as const) {
+      game.state.money = 10_000;
+      expect(game.unlockZone(z)).toBe(true);
+    }
+    const lineC = getUnlockedPath(game.zones, 2);
+    expect(lineC).not.toContain('tussenwater');
+    expect(getLineStops(game.zones, 3)).toContain('tussenwater'); // lijn D bedient Tussenwater wel
+    game.state.money = 10_000;
+    expect(game.unlockZone('west_1')).toBe(true);
+    expect(game.unlockZone('west_2')).toBe(true);
+    expect(getUnlockedPath(game.zones, 2)).toContain('tussenwater');
+  });
+
+  it('West 2 kan pas na West 1, ook al raakt het via Pernis Zuid 3', () => {
+    const { game } = createTestGame();
+    for (const z of ['kop_zuid', 'slinge', 'spijkenisse'] as const) game.zones[z].unlocked = true;
+    expect(canUnlockZone(game.zones, 'west_2')).toBe(false);
+    expect(unlockPrerequisites(game.zones, 'west_2')).toEqual(['west_1']);
+    expect(unlockPrerequisites(game.zones, 'de_akkers')).toEqual([]);
+    expect(canUnlockZone(game.zones, 'de_akkers')).toBe(true);
+  });
+
+  it('een rijdende trein blijft op zijn plek als er een zone opengaat (B4)', () => {
+    const t = createTestGame();
+    quiet(t.game);
+    const train = new Train(t.game, 0, 'beurs');
+    t.game.state.trains = [train];
+    t.run(20);
+    const before = [train.activePath[train.currentStationIndex], train.activePath[train.targetStationIndex]];
+    const progress = train.progress;
+    t.game.state.money = 10_000;
+    expect(t.game.unlockZone('west_1')).toBe(true);
+    expect([train.activePath[train.currentStationIndex], train.activePath[train.targetStationIndex]]).toEqual(before);
+    expect(train.progress).toBe(progress);
+    expect(train.progress).toBeGreaterThan(0);
+  });
+
+  it('reizigers in de metro komen aan, ook als er onderweg een zone opengaat', () => {
+    const t = createTestGame();
+    quiet(t.game);
+    t.game.state.trains = [new Train(t.game, 0, 'dijkzigt')];
+    passenger(t.game, 'blaak', 'oostplein');
+    passenger(t.game, 'eendracht', 'dijkzigt');
+    t.runSeconds(3);
+    t.game.state.money = 10_000;
+    t.game.unlockZone('west_1');
+    t.game.unlockZone('oost_1');
+    t.runSeconds(40);
+    expect(t.game.state.passengersTransported).toBe(2);
+  });
+});
+
+describe('tellers', () => {
+  it('telt verlopen reizigers, overstappen en reistijd', () => {
+    const t = createTestGame();
+    quiet(t.game);
+    t.game.state.trains = [new Train(t.game, 3, 'cs'), new Train(t.game, 0, 'dijkzigt')];
+    passenger(t.game, 'cs', 'oostplein');
+    passenger(t.game, 'stadhuis', 'cs'); // D rijdt eerst de andere kant op; komt later terug
+    t.runSeconds(60);
+    expect(t.game.state.transfers).toBe(1);
+    expect(t.game.state.passengersTransported).toBe(2);
+    expect(t.game.state.totalTravelTime).toBeGreaterThan(0);
+
+    const e = createTestGame();
+    quiet(e.game);
+    e.game.state.trains = [];
+    passenger(e.game, 'cs', 'beurs');
+    passenger(e.game, 'cs', 'blaak');
+    e.runSeconds(31);
+    expect(e.game.state.passengersExpired).toBe(2);
   });
 });

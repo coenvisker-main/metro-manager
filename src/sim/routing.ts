@@ -1,4 +1,4 @@
-import { ROUTES_DEF, getStation, type Zones } from '../data/network';
+import { ROUTES_DEF, STATIONS, getStation, type ZoneId, type Zones } from '../data/network';
 import type { GameState } from './types';
 
 /** Sleutel die verandert zodra er een zone opengaat; voor caches. */
@@ -60,11 +60,43 @@ export function areStationsConnected(zones: Zones, startId: string, endId: strin
   return a !== undefined && a === component.get(endId);
 }
 
-/** De ontgrendelde stations van een lijn, in rijvolgorde (inclusief waypoints). */
+/**
+ * Het rijdbare stuk van een lijn, in rijvolgorde (inclusief waypoints): het aaneengesloten stuk open spoor
+ * dat aan het centrum vastzit. Een lijn springt nooit over een dichte zone heen.
+ */
 export function getUnlockedPath(zones: Zones, routeIdx: number): string[] {
   const route = ROUTES_DEF[routeIdx];
   if (!route) return [];
-  return route.path.filter((id) => zones[getStation(id).zone].unlocked);
+  const isOpen = (id: string) => zones[getStation(id).zone].unlocked;
+
+  let start = 0;
+  for (let i = 0; i <= route.path.length; i++) {
+    if (i < route.path.length && isOpen(route.path[i]!)) continue;
+    const segment = route.path.slice(start, i);
+    if (segment.some((id) => getStation(id).zone === 'centrum')) return segment;
+    start = i + 1;
+  }
+  return [];
+}
+
+/** Kan deze zone open? Alleen als al zijn stations daarna meteen door een lijn bereikbaar zijn: geen eilanden. */
+export function canUnlockZone(zones: Zones, key: ZoneId): boolean {
+  if (zones[key].unlocked) return false;
+  const after: Zones = { ...zones, [key]: { ...zones[key], unlocked: true } };
+  const served = new Set(ROUTES_DEF.flatMap((_, i) => getUnlockedPath(after, i)));
+  return STATIONS.filter((s) => s.zone === key && s.type !== 'waypoint').every((s) => served.has(s.id));
+}
+
+/**
+ * Dichte zones die eerst open moeten (elk ervan is genoeg) voordat `key` kan. Leeg als `key` al kan, of als
+ * het niet in één stap lukt.
+ */
+export function unlockPrerequisites(zones: Zones, key: ZoneId): ZoneId[] {
+  if (zones[key].unlocked || canUnlockZone(zones, key)) return [];
+  return (Object.keys(zones) as ZoneId[]).filter((other) => {
+    if (other === key || !canUnlockZone(zones, other)) return false;
+    return canUnlockZone({ ...zones, [other]: { ...zones[other], unlocked: true } }, key);
+  });
 }
 
 export function getTrainCost(state: GameState, routeIdx: number): number {

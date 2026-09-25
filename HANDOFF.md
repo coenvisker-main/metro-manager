@@ -28,7 +28,7 @@ Tot nu toe bereikt:
 - PR #2 (gemerged): `npm run build:single` levert één `metro-manager.html`, die CI als artifact uploadt (zonder zip).
   Coen heeft bevestigd dat het bestand op zijn werklaptop werkt.
 - De deploy naar Pages is geslaagd: https://coenvisker-main.github.io/metro-manager/. Coen heeft bevestigd dat de link op zijn werklaptop werkt.
-- Fase 2 opgedeeld in 2a–2d (akkoord Coen). 2a (tijdmodel, B3/B6/B7, plus U1) is gemerged; 2b (waypoints en reisplanner, B1/B2) staat als PR open. Besluiten staan in `docs/ROADMAP.md`.
+- Fase 2 opgedeeld in 2a–2d (akkoord Coen). 2a (tijdmodel, B3/B6/B7, plus U1) en 2b (waypoints en reisplanner, B1/B2) zijn gemerged; 2c (zones en spoor, B4/B5/B8, tellers) staat als PR open. Besluiten staan in `docs/ROADMAP.md`.
 
 Wat werkte:
 
@@ -111,7 +111,8 @@ Openstaande acties:
 - [x] Fase 2 opgedeeld (akkoord): 2a tijdmodel (B3, B6, B7), 2b waypoints en reisplanner (B1, B2),
       2c zones (B4, B5), 2d balans-config en bot-simulatie.
 - [x] 2a gemerged (PR #4). Coen testte: treinsnelheid goed, pauze bij tab-wissel werkt.
-- [ ] 2b: PR laten mergen na test door Coen. Daarna 2c (B4, B5, B8 en tellers in de zijbalk; zie roadmap).
+- [x] 2b gemerged (PR #5). Coen kon individuele reizigers niet volgen; daarom tellers in 2c.
+- [ ] 2c: PR laten mergen na test door Coen. Daarna 2d (balans).
 - [ ] Na elke deel-PR: CI groen, en Coen test via het artifact `metro-manager.html`.
 - [ ] `.claude/settings.json` bevat `mcpServers` met `@modelcontextprotocol/server-github`.
   - Vermoedelijk leest Claude Code dit daar niet uit, en het package is mogelijk verouderd [niet geverifieerd].
@@ -120,4 +121,4 @@ Openstaande acties:
 - [ ] Optioneel: een devcontainer voor GitHub Codespaces, als Coen zelf wil ontwikkelen zonder lokale Node.
 - [ ] Onbekend of Coens lokale clone al op `main` staat [niet geverifieerd]. Bij lokaal werk eerst `git status` laten checken.
 
-Directe vervolgstap: Controleer of de PR van 2b gemerged is. Zo ja: begin 2c: B4 trein hermappen op station-id, B5 zone alleen openen als hij aansluit, B8 lijn nooit over dicht spoor, en tellers (vervoerd, verlopen, overstappen, gemiddelde reistijd) in de zijbalk. B5 en de tellers raken de UI: stel het ontwerp eerst voor aan Coen.
+Directe vervolgstap: Controleer of de PR van 2c gemerged is. Zo ja: 2d (balans). Dat is spelontwerp: eerst met Coen sparren, niet zelf balansgetallen kiezen. Uitgangspunten uit de metingen (roadmap, "Meting na 2b"): het netwerk loopt vast op wachttijd (effectief geduld 30 s tegen lange lijnen), niet op capaciteit; geld loopt volgens Coen snel op. Eerst alle balansgetallen naar `src/sim/config.ts` en een deterministische bot-simulatie als meetlat, dan pas met Coen de knoppen kiezen.

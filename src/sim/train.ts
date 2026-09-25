@@ -1,13 +1,14 @@
 import { ROUTES_DEF, getStation, type RouteDef } from '../data/network';
 import { GAME_CONFIG, STEP_MS } from './config';
 import { mapDistance } from './layout';
+import { getUnlockedPath } from './routing';
 import type { Passenger, SimContext } from './types';
 
 type TrainMode = 'MOVING' | 'BOARDING';
 
-/** Pad van een lijn over ontgrendelde stations, zonder waypoints aan de uiteinden. */
-function computeActivePath(ctx: SimContext, route: RouteDef): string[] {
-  const path = route.path.filter((id) => ctx.zones[getStation(id).zone].unlocked);
+/** Het rijdbare stuk van een lijn, zonder waypoints aan de uiteinden. */
+function computeActivePath(ctx: SimContext, routeIdx: number): string[] {
+  const path = getUnlockedPath(ctx.zones, routeIdx);
   while (path.length > 0 && getStation(path[0]!).type === 'waypoint') path.shift();
   while (path.length > 0 && getStation(path[path.length - 1]!).type === 'waypoint') path.pop();
   return path;
@@ -35,7 +36,7 @@ export class Train {
     if (!routeDef) throw new Error(`Onbekende lijn-index: ${routeDefIndex}`);
     this.routeDefIndex = routeDefIndex;
     this.routeDef = routeDef;
-    this.activePath = computeActivePath(ctx, routeDef);
+    this.activePath = computeActivePath(ctx, routeDefIndex);
 
     if (this.activePath.length > 1) {
       if (spawnStationId) {
@@ -65,22 +66,26 @@ export class Train {
     }
   }
 
-  /** Herberekent het pad na het openen van een zone. */
+  /** Herberekent het pad na het openen van een zone. De metro blijft tussen dezelfde twee stations rijden. */
   updatePathCache(): void {
-    this.activePath = computeActivePath(this.ctx, this.routeDef);
+    const currentId = this.activePath[this.currentStationIndex];
+    const targetId = this.activePath[this.targetStationIndex];
+    this.activePath = computeActivePath(this.ctx, this.routeDefIndex);
 
-    // BEKENDE BUG (fase 2): indexen worden niet op station-id hermapt, dus de trein verspringt.
-    if (this.currentStationIndex >= this.activePath.length) {
-      this.currentStationIndex = this.activePath.length - 1;
-      this.progress = 0;
-      this.state = 'BOARDING';
+    const current = currentId ? this.activePath.indexOf(currentId) : -1;
+    const target = targetId ? this.activePath.indexOf(targetId) : -1;
+    if (current !== -1 && target !== -1) {
+      this.currentStationIndex = current;
+      this.targetStationIndex = target;
+      if (target !== current) this.direction = target > current ? 1 : -1;
+      return;
     }
 
-    if (this.targetStationIndex >= this.activePath.length) {
-      this.targetStationIndex = this.currentStationIndex;
-      this.progress = 0;
-      this.state = 'BOARDING';
-    }
+    // Vangnet (zou niet moeten voorkomen: een pad wordt bij het openen van een zone alleen langer).
+    this.currentStationIndex = Math.max(0, Math.min(current, this.activePath.length - 1));
+    this.targetStationIndex = this.currentStationIndex;
+    this.progress = 0;
+    this.state = 'BOARDING';
   }
 
   /** Laat de trein `dt` ms speltijd rijden of stilstaan. */
@@ -165,9 +170,11 @@ export class Train {
 
           totalEarnings += state.baseTicketPrice + distanceBonus + tip;
           state.passengersTransported++;
+          state.totalTravelTime += travelTime;
           state.reputation = Math.min(100, state.reputation + 0.2);
         } else {
           // Overstap: wachten op het volgende perron. Het geduld begint hier opnieuw.
+          state.transfers++;
           state.waitingPassengers.push({
             ...p,
             from: currentStationId,

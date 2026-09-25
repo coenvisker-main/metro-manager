@@ -35,7 +35,7 @@ Legenda: ✅ klaar · 🔜 volgende · ⏳ gepland · ❓ nog uitzoeken
 
 ## 🔜 Fase 2: simulatiekern herbouwen
 
-Doel: alle tests in `tests/known-bugs.test.ts` groen, zonder de spelbeleving te slopen.
+Doel: alle tests in `tests/known-bugs.test.ts` groen, zonder de spelbeleving te slopen. Na 2c zijn alle bekende bugs (B1–B8) opgelost en is dat bestand weg.
 
 Opgedeeld in deel-PR's (afgestemd met Coen, 24 sep 2026):
 
@@ -43,8 +43,8 @@ Opgedeeld in deel-PR's (afgestemd met Coen, 24 sep 2026):
 | ---- | ---------- | -------------------------------------------------- | ------ |
 | 2a   | B3, B6, B7 | Tijdmodel: spelklok, vaste tijdstap, kaarteenheden | ✅     |
 | 2b   | B1, B2     | Waypoints puur visueel, reisplanner met etappes    | ✅     |
-| 2c   | B4, B5, B8 | Zones en spoor, plus tellers in de zijbalk         | 🔜     |
-| 2d   | –          | Balans-config en bot-simulatie                     | ⏳     |
+| 2c   | B4, B5, B8 | Zones en spoor, plus tellers in de zijbalk         | ✅     |
+| 2d   | –          | Balans-config en bot-simulatie                     | 🔜     |
 
 Besluiten 2a:
 
@@ -54,6 +54,17 @@ Besluiten 2a:
   vóór fase 2 op een speelveld van 1200×800 bij 60 fps, en nu op elk scherm en elke framerate hetzelfde.
 - Tab weg of venster geminimaliseerd: het spel pauzeert automatisch. Hervatten doet de speler zelf.
   Alleen naar een ander venster klikken (zonder minimaliseren) pauzeert niet.
+
+Besluiten 2c:
+
+- Geen eilanden, geen sprongen. Een lijn rijdt alleen over het aaneengesloten stuk open spoor dat aan het centrum
+  vastzit (`getUnlockedPath`). Een zone kan alleen open als al zijn stations daarna meteen door een lijn bereikbaar
+  zijn (`canUnlockZone`). De uitbreidingslijst zegt welke zone eerst moet ("Open eerst: …").
+- Volgorde die daaruit volgt (getest): Kop van Zuid, West 1, Oost 1 en Lijn E direct; Slinge na Kop van Zuid;
+  Zuid 3 na Slinge; De Akkers na Zuid 3; West 2 na West 1 (ook al raakt het via Pernis Zuid 3); Hoek van Holland na
+  West 2; Ommoord en Capelle na Oost 1; Nesselande na Ommoord.
+- Bij het openen van een zone blijft een metro tussen dezelfde twee stations rijden.
+- Tellers in het blok onder Beheer, totaal sinds de start: verlopen, overstappen, gemiddelde reistijd.
 
 Afspraken 2c (24 sep):
 
@@ -105,9 +116,9 @@ Let op: ook die branch stapt nog op elke tussenhalte uit en in (B2 zit er ook in
 | ✅ B1 | Reizigers spawnen op onzichtbare waypoints, en reizigers met een waypoint als volgende halte blijven eeuwig in de trein zitten.                                                          | Waypoints worden puur visueel: niet in spawn, niet in de routegraaf.                                                                                                                       |
 | ✅ B2 | Reizigers stappen op elke tussenhalte uit en in (+€2 per halte); de afstandsbonus telt alleen de laatste halte.                                                                          | Reisplanner: reis als reeks (lijn, uitstaphalte). Alleen overstappen waar de lijn wisselt. Idee uit de lokale branch: alleen routeren via lijnen waar treinen rijden.                      |
 | ✅ B3 | Tijdmodel: snelheid hangt af van framerate en schermgrootte; pauze en tab-wissel laten reizigers massaal verlopen; overvol-timer loopt door tijdens pauze.                               | Vaste tijdstap op een spelklok (`gameTime`) die stilstaat bij pauze. Afstanden in kaarteenheden in plaats van pixels.                                                                      |
-| B4    | Treinen verspringen als er een zone opengaat.                                                                                                                                            | Positie hermappen op station-id (was lokaal al opgelost).                                                                                                                                  |
-| B5    | Zones kunnen in elke volgorde open; treinen rijden dan over niet-bestaand spoor naar onbereikbare eilanden.                                                                              | Zone alleen te openen als hij aansluit op een open zone.                                                                                                                                   |
-| B8    | Een lijn springt over dicht spoor: Zuid 3 open en West 2 dicht laat lijn C van Schiedam C. rechtstreeks naar Tussenwater rijden. Zit er al in sinds fase 0 (gevonden door Coen, 24 sep). | Een lijn rijdt alleen over een aaneengesloten stuk open spoor; bij een gat rijdt hij op het stuk dat aan het centrum vastzit. B5 alleen lost dit niet op: Zuid 3 sluit via lijn D wél aan. |
+| ✅ B4 | Treinen verspringen als er een zone opengaat.                                                                                                                                            | Positie hermappen op station-id (was lokaal al opgelost).                                                                                                                                  |
+| ✅ B5 | Zones kunnen in elke volgorde open; treinen rijden dan over niet-bestaand spoor naar onbereikbare eilanden.                                                                              | Zone alleen te openen als hij aansluit op een open zone.                                                                                                                                   |
+| ✅ B8 | Een lijn springt over dicht spoor: Zuid 3 open en West 2 dicht laat lijn C van Schiedam C. rechtstreeks naar Tussenwater rijden. Zit er al in sinds fase 0 (gevonden door Coen, 24 sep). | Een lijn rijdt alleen over een aaneengesloten stuk open spoor; bij een gat rijdt hij op het stuk dat aan het centrum vastzit. B5 alleen lost dit niet op: Zuid 3 sluit via lijn D wél aan. |
 | ✅ B6 | Overvol-timer van een station wordt niet gewist als het station helemaal leegloopt; later weer vol betekent direct game over.                                                            | Timer wissen voor elk station dat niet (meer) overvol is.                                                                                                                                  |
 | ✅ B7 | Na game over hervat de pauzeknop de simulatie.                                                                                                                                           | Pauze blokkeren na game over.                                                                                                                                                              |
 

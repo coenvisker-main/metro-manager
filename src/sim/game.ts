@@ -2,7 +2,7 @@ import { STATIONS, cloneZones, getStation, type ZoneId, type Zones } from '../da
 import { BASE_SPEED, GAME_CONFIG, INITIAL_TRAIN_ROUTES, MAX_FRAME_MS, STEP_MS } from './config';
 import { Layout } from './layout';
 import { JourneyPlanner } from './planner';
-import { areStationsConnected, getTrainCost, getUnlockedPath } from './routing';
+import { areStationsConnected, canUnlockZone, getTrainCost, getUnlockedPath } from './routing';
 import { createInitialState } from './state';
 import { Train } from './train';
 import type { GameState, PopupType, SimContext, UpgradeType } from './types';
@@ -177,6 +177,7 @@ export class Game implements SimContext {
       if (now - p.waitingSince > effectivePatience) {
         state.waitingPassengers.splice(i, 1);
         state.reputation = Math.max(0, state.reputation - 1);
+        state.passengersExpired++;
       }
     }
 
@@ -241,10 +242,15 @@ export class Game implements SimContext {
     return true;
   }
 
-  /** Opent een zone. Geeft false als dat niet kan (te weinig geld of al open). */
+  /** Kan deze zone open, los van het geld? Alleen als hij aansluit op het netwerk (zie `canUnlockZone`). */
+  canUnlockZone(key: ZoneId): boolean {
+    return canUnlockZone(this.zones, key);
+  }
+
+  /** Opent een zone. Geeft false als dat niet kan (te weinig geld, al open of sluit niet aan). */
   unlockZone(key: ZoneId): boolean {
     const zone = this.zones[key];
-    if (this.state.money < zone.cost || zone.unlocked) return false;
+    if (this.state.money < zone.cost || !this.canUnlockZone(key)) return false;
     this.state.money -= zone.cost;
     zone.unlocked = true;
     for (const t of this.state.trains) t.updatePathCache();

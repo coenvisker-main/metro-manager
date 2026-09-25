@@ -36,6 +36,11 @@ export interface GameState {
   gameOver: boolean;
   money: number;
   passengersTransported: number;
+  /** Tellers voor de zijbalk (totaal sinds de start). */
+  passengersExpired: number;
+  transfers: number;
+  /** Som van de reistijden (ms) van alle aangekomen reizigers, voor de gemiddelde reistijd. */
+  totalTravelTime: number;
   reputation: number;
   baseTicketPrice: number;
   globalSpeed: number;

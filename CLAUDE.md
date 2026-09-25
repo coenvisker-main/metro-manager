@@ -41,5 +41,5 @@ Lokaal ook: `C:\Users\chvis\Projects\_GLOBAL_CONTEXT.md` voor globale conventies
 ## Testen
 
 - Simulatie testen door deterministisch te tikken: `createTestGame()` en `run()`/`runSeconds()` uit `tests/helpers.ts`. Niet op de wandklok wachten.
-- Bekende bugs staan als `it.fails` in `tests/known-bugs.test.ts`. Los je er een op, dan faalt die test: zet hem om naar `it` en verplaats hem naar `tests/sim.test.ts`.
+- Een bekende bug die je (nog) niet oplost, leg je vast als `it.fails` in `tests/known-bugs.test.ts` (maak het bestand aan als het er niet is; nu zijn alle bekende bugs opgelost). Los je er een op, dan faalt die test: zet hem om naar `it` en verplaats hem naar `tests/sim.test.ts`.
 - Headless browser (Playwright) throttlet `requestAnimationFrame`. Stub `requestAnimationFrame` en `Date.now` en tik handmatig; in dev-modus staan `window.__game` en `window.__debug` klaar.
