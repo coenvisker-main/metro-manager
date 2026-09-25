@@ -114,7 +114,14 @@ Openstaande acties:
 - [x] 2b gemerged (PR #5). Coen kon individuele reizigers niet volgen; daarom tellers in 2c.
 - [x] 2c gemerged (PR #6).
 - [x] 2d-1 (meetlat) gemerged (PR #7).
-- [ ] 2d-2 (afstellen): PR laten mergen na spelen door Coen; getallen zijn een voorstel. Daarna is fase 2 klaar.
+- [ ] 2d-2 (afstellen): PR #8 staat open, CI groen. Coen heeft twee keer gespeeld; de feedback is verwerkt (zie
+      roadmap, "Besluiten 2d"). Wacht op Coens derde speeltest (25 sep: "geen tijd, ik meld me"). Niet zelf de CI
+      blijven controleren; Coen meldt zich. Open voor Coen:
+  - Goedkeuren of niet: twee toevoegingen van Claude (nieuwe zones trekken geleidelijk reizigers; overstapstations
+    groter, +20 plekken per extra lijn).
+  - Geld stapelt laat in het potje nog op (~€80–110k na 20 min). Mogelijke richting: "stations uitbreiden" als late
+    investering (idee, nog niet gekozen).
+  - Daarna mergen; dan is fase 2 klaar.
 - [ ] Na elke deel-PR: CI groen, en Coen test via het artifact `metro-manager.html`.
 - [ ] `.claude/settings.json` bevat `mcpServers` met `@modelcontextprotocol/server-github`.
   - Vermoedelijk leest Claude Code dit daar niet uit, en het package is mogelijk verouderd [niet geverifieerd].
@@ -123,4 +130,4 @@ Openstaande acties:
 - [ ] Optioneel: een devcontainer voor GitHub Codespaces, als Coen zelf wil ontwikkelen zonder lokale Node.
 - [ ] Onbekend of Coens lokale clone al op `main` staat [niet geverifieerd]. Bij lokaal werk eerst `git status` laten checken.
 
-Directe vervolgstap: Controleer of de PR van 2d-2 gemerged is en of Coen de getallen wil bijstellen (meet elke wijziging met `npm run balance`; `tests/balance.test.ts` bewaakt de doelen). Daarna is fase 2 klaar: bespreek met Coen wat de volgende fase wordt (fase 3 UI of fase 4 campagne, zie roadmap).
+Directe vervolgstap: Wacht op Coens speeltest van PR #8 (2d-2). Verwerk zijn feedback: meet elke wijziging met `npm run balance` (bot "beheerder" koopt upgrades zoals een speler), en `tests/balance.test.ts` bewaakt de doelen (niets doen game over in 4–7 min, beheerder 20+ min en binnen 40 min onderuit). Pas grenzen in die test alleen aan na overleg met Coen. Na de merge is fase 2 klaar: bespreek met Coen de volgende fase (fase 3 UI of fase 4 campagne, zie roadmap).
