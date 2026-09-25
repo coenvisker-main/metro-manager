@@ -153,7 +153,7 @@ export class Renderer {
       const count = state.waitingPassengers.filter((p) => p.from === station.id).length;
       if (count === 0) continue;
 
-      const usage = count / BALANCE.limits.stationCapacity;
+      const usage = count / game.stationCapacity(station.id);
       let color = '#10B981'; // groen
       let pulse = false;
       if (usage > 1.0) {

@@ -7,6 +7,11 @@ import { createInitialState } from './state';
 import { Train } from './train';
 import type { GameState, PopupType, SimContext, UpgradeType } from './types';
 
+/** Hoeveel lijnen er bij elk station stoppen (vaste netwerkdata). */
+const LINES_PER_STATION = new Map(
+  STATIONS.map((s) => [s.id, ROUTES_DEF.filter((r) => r.path.includes(s.id)).length] as const),
+);
+
 export interface GameHooks {
   onMoneyChanged?(): void;
   onPopup?(text: string, x: number, y: number, type: PopupType): void;
@@ -92,6 +97,19 @@ export class Game implements SimContext {
     return STATIONS.filter((s) => this.zones[s.zone].unlocked).length;
   }
 
+  /** Hoeveel wachtenden een station aankan: overstapstations (meer lijnen) zijn groter. */
+  stationCapacity(stationId: string): number {
+    const lines = LINES_PER_STATION.get(stationId) ?? 1;
+    return BALANCE.limits.stationCapacity + Math.max(0, lines - 1) * BALANCE.limits.stationCapacityPerExtraLine;
+  }
+
+  /** Aandeel van de volle reizigersstroom dat een zone al trekt (0..1): groeit na het openen. */
+  private zoneRamp(key: ZoneId): number {
+    const openedAt = this.state.zoneOpenedAt[key];
+    if (openedAt === undefined) return 1;
+    return Math.min(1, (this.state.time - openedAt) / BALANCE.expansion.rampUpTime);
+  }
+
   /** Hoeveel drukker het is dan bij de start: groeit met de speltijd. */
   get demandMultiplier(): number {
     return 1 + (this.state.time / 60_000) * BALANCE.demand.growthPerMinute;
@@ -99,7 +117,12 @@ export class Game implements SimContext {
 
   /** Exploitatiekosten van de hele vloot per minuut. */
   get operatingCostPerMinute(): number {
-    return this.state.trains.length * BALANCE.cashflow.costPerTrainPerMinute;
+    return this.state.trains.length * this.costPerTrainPerMinute;
+  }
+
+  /** Exploitatiekosten van één metro per minuut: per rijtuig, dus langere metro's kosten meer. */
+  get costPerTrainPerMinute(): number {
+    return (this.state.trainCapacity / BALANCE.train.carCapacity) * BALANCE.cashflow.costPerCarPerMinute;
   }
 
   /**
@@ -124,6 +147,10 @@ export class Game implements SimContext {
     }
 
     if (endNode.id === startNode.id) return;
+
+    // Een pas geopende zone trekt nog niet de volle reizigersstroom.
+    const ramp = Math.min(this.zoneRamp(startNode.zone), this.zoneRamp(endNode.zone));
+    if (ramp < 1 && this.random() >= ramp) return;
 
     const now = this.now();
     this.state.waitingPassengers.push({
@@ -200,9 +227,16 @@ export class Game implements SimContext {
     this.checkSurvivalRules();
   }
 
-  /** Exploitatiekosten afschrijven; subsidie alleen als vangnet bij een laag saldo. */
+  /** Exploitatiekosten afschrijven, drukte kost tevredenheid, en subsidie alleen als vangnet bij schuld. */
   private cashflow(): void {
     const state = this.state;
+
+    const counts = new Map<string, number>();
+    for (const p of state.waitingPassengers) counts.set(p.from, (counts.get(p.from) ?? 0) + 1);
+    const { penalty } = BALANCE;
+    const crowded = [...counts].filter(([id, n]) => n > this.stationCapacity(id) * penalty.crowdedShare).length;
+    state.reputation = Math.max(0, state.reputation - crowded * penalty.reputationPerCrowdedStation);
+
     const costs = Math.round((this.operatingCostPerMinute * BALANCE.cashflow.interval) / 60_000);
     if (costs > 0) {
       this.addMoney(-costs);
@@ -232,12 +266,12 @@ export class Game implements SimContext {
 
     // Een station dat niet (meer) overvol is, ook een leeg station, begint later weer bij nul.
     for (const stationId of Object.keys(state.overloadedStations)) {
-      if ((counts[stationId] ?? 0) < BALANCE.limits.stationCapacity) delete state.overloadedStations[stationId];
+      if ((counts[stationId] ?? 0) < this.stationCapacity(stationId)) delete state.overloadedStations[stationId];
     }
 
     const now = this.now();
     for (const [stationId, count] of Object.entries(counts)) {
-      if (count < BALANCE.limits.stationCapacity) continue;
+      if (count < this.stationCapacity(stationId)) continue;
       const overloadedSince = state.overloadedStations[stationId];
       if (overloadedSince === undefined) {
         state.overloadedStations[stationId] = now;
@@ -349,6 +383,7 @@ export class Game implements SimContext {
 
   private openZone(key: ZoneId): void {
     this.zones[key].unlocked = true;
+    this.state.zoneOpenedAt[key] = this.state.time;
     for (const t of this.state.trains) t.updatePathCache();
   }
 
@@ -364,11 +399,17 @@ export class Game implements SimContext {
     return true;
   }
 
+  /** Is deze upgrade op zijn hoogste niveau? */
+  upgradeMaxed(type: UpgradeType): boolean {
+    return this.state.upgradeLevels[type] >= BALANCE.upgrades[type].maxLevel;
+  }
+
   buyUpgrade(type: UpgradeType): boolean {
     const state = this.state;
     const cost = state.costs[type];
-    if (state.money < cost) return false;
+    if (state.money < cost || this.upgradeMaxed(type)) return false;
     state.money -= cost;
+    state.upgradeLevels[type]++;
 
     const upgrade = BALANCE.upgrades[type];
     state.costs[type] = Math.floor(cost * upgrade.costGrowth);

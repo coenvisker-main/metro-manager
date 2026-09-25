@@ -10,7 +10,8 @@ import { BOTS, simulate } from '../scripts/bots';
 const bot = (name: string) => BOTS.find((b) => b.name === name)!;
 const SEEDS = [1, 2, 3];
 
-describe('balansdoelen', () => {
+// Lange simulaties (tot 40 minuten speltijd per bot): ruimere tijdslimiet dan de standaard 5 s.
+describe('balansdoelen', { timeout: 60_000 }, () => {
   it('niets doen is game over tussen 4 en 7 minuten', () => {
     for (const seed of SEEDS) {
       const r = simulate(bot('niets-doen'), seed, 10);

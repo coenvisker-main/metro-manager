@@ -1,7 +1,6 @@
 // Botjes en een deterministische simulatie-runner, om de spelbalans te meten (`npm run balance`).
 // Draait de simulatie zonder browser: vaste seed, vaste stappen, geen wandklok.
 import { ROUTES_DEF } from '../src/data/network';
-import { BALANCE } from '../src/sim/config';
 import { Game } from '../src/sim/game';
 import { Layout } from '../src/sim/layout';
 import { getLineStops } from '../src/sim/routing';
@@ -49,13 +48,13 @@ export const BOTS: readonly Bot[] = [
   {
     name: 'beheerder',
     description:
-      'Redelijk: eerst lijnen zonder metro bedienen, dan een metro erbij op de drukste lijn (als de exploitatie te betalen blijft), capaciteit als metro’s vol zitten, campagne bij lage tevredenheid, en snellere metro’s bij geld over.',
+      'Redelijk: eerst lijnen zonder metro bedienen, dan een metro erbij op de drukste lijn (als de exploitatie te betalen blijft), capaciteit als metro’s vol zitten, campagne bij lage tevredenheid, en bij geld over alle upgrades (goedkoopste eerst).',
     act(game) {
       const { state } = game;
       if (state.reputation < 50 && game.buyUpgrade('marketing')) return;
 
       // Buffer: een halve minuut exploitatie van de vloot plus één extra metro.
-      const reserve = 0.5 * (game.operatingCostPerMinute + BALANCE.cashflow.costPerTrainPerMinute);
+      const reserve = 0.5 * (game.operatingCostPerMinute + game.costPerTrainPerMinute);
       const buy = (line: number) =>
         state.money - game.trainCost(line) > reserve && game.buyTrain(line, game.unlockedPath(line)[0]!);
 
@@ -81,8 +80,15 @@ export const BOTS: readonly Bot[] = [
 
       const onBoard = state.trains.reduce((sum, t) => sum + t.passengers.length, 0);
       const occupancy = onBoard / Math.max(1, state.trains.length * state.trainCapacity);
-      if (occupancy > 0.8 && state.money - state.costs.capacity > reserve && game.buyUpgrade('capacity')) return;
-      if (state.money > 3 * state.costs.speed + reserve) game.buyUpgrade('speed');
+      if (occupancy > 0.6 && state.money - state.costs.capacity > reserve && game.buyUpgrade('capacity')) return;
+
+      // Geld over: investeren zoals een speler dat doet (goedkoopste eerst).
+      const upgrades = (['comfort', 'speed', 'capacity'] as const)
+        .filter((u) => !game.upgradeMaxed(u))
+        .sort((a, b) => state.costs[a] - state.costs[b]);
+      for (const u of upgrades) {
+        if (state.money - state.costs[u] > reserve && game.buyUpgrade(u)) return;
+      }
     },
   },
 ];

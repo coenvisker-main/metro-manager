@@ -127,8 +127,12 @@ export class Ui {
     el('fleet-size').innerText = String(state.trains.length);
     el('ticket-price').innerText = state.baseTicketPrice.toFixed(2);
     for (const { type } of UPGRADES) {
-      el(`cost-${type}`).innerText = String(state.costs[type]);
-      el<HTMLButtonElement>(`btn-${type}`).disabled = state.money < state.costs[type];
+      const maxed = this.game.upgradeMaxed(type);
+      const { maxLevel } = BALANCE.upgrades[type];
+      el(`price-${type}`).innerHTML = maxed ? 'max' : `€<span id="cost-${type}">${state.costs[type]}</span>`;
+      const btn = el<HTMLButtonElement>(`btn-${type}`);
+      btn.disabled = maxed || state.money < state.costs[type];
+      btn.title = Number.isFinite(maxLevel) ? `Niveau ${state.upgradeLevels[type]}/${maxLevel}` : '';
     }
 
     el('operating-cost').innerText = String(this.game.operatingCostPerMinute);

@@ -97,6 +97,24 @@ Besluiten 2d (25 sep):
     exploitatie €150 per metro per minuut.
   - Uitkomst (30 min, seeds 1–3): niets doen game over na 5:43–6:17; blind kopen na ~12:35; beheerder 25 min of
     langer. Laat in het potje (netwerk open, spoor vol) stapelt geld weer op (~€55k na 20 min): let op bij spelen.
+- Coen speelde opnieuw (25 sep): "erg makkelijk". Tevredenheid bleef 100%, niemand bleef staan, het tarief liep op tot
+  €23 en laat in het potje was er geld zat. Oorzaken (gemeten met een bot die upgrades koopt zoals een speler): upgrades
+  hadden geen maximum (capaciteit tot 160+ per metro, comfort tot €35 tarief en +37 s geduld); tevredenheid steeg
+  +0,2 per aankomst en zakte dus nooit; game over kwam altijd plotseling op Beurs (enige kruising A/B/C met D/E).
+  Aangepast, met keuzes van Coen:
+  - **Upgrades maximaal 5 niveaus** (prijs blijft oplopen); comfort +€1 per niveau; campagne onbeperkt.
+  - **Subsidie alleen bij schuld** (saldo onder €0).
+  - **Drukte kost tevredenheid:** elk station dat meer dan half vol staat, kost elke 10 s 1% tevredenheid.
+    Tevredenheid per aankomst omlaag naar +0,02, anders zakt hij nooit.
+  - **Exploitatie per rijtuig** (€100 per rijtuig per minuut; een metro van 20 plaatsen is 2 rijtuigen).
+  - Toegevoegd door Claude, ter goedkeuring: **nieuwe zones trekken geleidelijk reizigers** (in 2 min naar vol; de
+    laatste zone, Den Haag met 14 stations, gaf anders een klif waar elke bot tegelijk op strandde) en
+    **overstapstations zijn groter** (+20 plekken per extra lijn: Beurs 120, de stam 80), zodat goed spelen weer
+    verschil maakt.
+  - Vraaggroei 0,4/min.
+  - Uitkomst (40 min, seeds 1–3): niets doen game over na ~6:07; blind kopen na ~12:00; beheerder (koopt alle
+    upgrades) na 20:51–21:31. Geld stapelt laat in het potje nog steeds op (~€80–110k na 20 min): de inkomsten groeien
+    mee met de vraag, de kosten zijn begrensd door het spoor. Open punt voor Coen.
 
 Afspraken 2c (24 sep):
 

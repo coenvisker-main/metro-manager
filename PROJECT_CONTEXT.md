@@ -12,7 +12,7 @@ leerproject; bij enthousiasme mogelijk een release samen met RET marketing en co
 De stad groeit vanzelf: om de paar minuten gaat er een nieuwe zone open, en de reizigersvraag neemt
 toe. De speler zet metro's in op de lijnen A t/m E (gedeeld spoor, ongeveer één metro per 1,5 halte), kiest hun startstation
 en koopt upgrades (frequentie, capaciteit, faciliteiten, marketing). Metro's kosten doorlopend
-exploitatiekosten; subsidie is er alleen als vangnet bij een laag saldo. Vervoerde reizigers leveren
+exploitatiekosten per rijtuig; subsidie is er alleen als vangnet bij schuld. Upgrades hebben 5 niveaus. Vervoerde reizigers leveren
 geld op, te lang wachten kost tevredenheid. Het spel is eindeloos en wordt steeds zwaarder: game over bij
 0% tevredenheid of een station dat langer dan 10 seconden overvol is.
 
