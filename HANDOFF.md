@@ -112,7 +112,8 @@ Openstaande acties:
       2c zones (B4, B5), 2d balans-config en bot-simulatie.
 - [x] 2a gemerged (PR #4). Coen testte: treinsnelheid goed, pauze bij tab-wissel werkt.
 - [x] 2b gemerged (PR #5). Coen kon individuele reizigers niet volgen; daarom tellers in 2c.
-- [ ] 2c: PR laten mergen na test door Coen. Daarna 2d (balans).
+- [x] 2c gemerged (PR #6).
+- [ ] 2d-1 (meetlat): PR laten mergen. Daarna 2d-2 (afstellen), keuzes staan in de roadmap onder "Besluiten 2d".
 - [ ] Na elke deel-PR: CI groen, en Coen test via het artifact `metro-manager.html`.
 - [ ] `.claude/settings.json` bevat `mcpServers` met `@modelcontextprotocol/server-github`.
   - Vermoedelijk leest Claude Code dit daar niet uit, en het package is mogelijk verouderd [niet geverifieerd].
@@ -121,4 +122,4 @@ Openstaande acties:
 - [ ] Optioneel: een devcontainer voor GitHub Codespaces, als Coen zelf wil ontwikkelen zonder lokale Node.
 - [ ] Onbekend of Coens lokale clone al op `main` staat [niet geverifieerd]. Bij lokaal werk eerst `git status` laten checken.
 
-Directe vervolgstap: Controleer of de PR van 2c gemerged is. Zo ja: 2d (balans). Dat is spelontwerp: eerst met Coen sparren, niet zelf balansgetallen kiezen. Uitgangspunten uit de metingen (roadmap, "Meting na 2b"): het netwerk loopt vast op wachttijd (effectief geduld 30 s tegen lange lijnen), niet op capaciteit; geld loopt volgens Coen snel op. Eerst alle balansgetallen naar `src/sim/config.ts` en een deterministische bot-simulatie als meetlat, dan pas met Coen de knoppen kiezen.
+Directe vervolgstap: Controleer of de PR van 2d-1 gemerged is. Zo ja: 2d-2. Bouw de gekozen mechanieken (groeiende vraag, exploitatiekosten, subsidie als vangnet, frequentie-upgrade alleen snelheid), stel getallen voor met `npm run balance`, en leg de doelen vast als test (niets doen game over binnen ~5 min, bot "beheerder" 20+ min). Coen beslist over de getallen na spelen. De bot "beheerder" moet dan ook exploitatiekosten meewegen.

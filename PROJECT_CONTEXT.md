@@ -19,7 +19,8 @@ dan 10 seconden overvol is.
 
 - Fase 0 en 1 afgerond (september 2026): één codebasis op `main`, Vite + TypeScript, tests, CI en deploy.
 - Fase 2 loopt in deel-PR's. 2a (tijdmodel), 2b (waypoints en reisplanner) en 2c (zones en spoor, tellers) zijn
-  klaar: alle bekende bugs uit de review zijn opgelost. Volgende: 2d (balans).
+  klaar: alle bekende bugs uit de review zijn opgelost. 2d (balans): 2d-1 meetlat (`npm run balance`) klaar, 2d-2
+  afstellen is de volgende stap.
 - Details en planning: `docs/ROADMAP.md`.
 
 ## Architectuur

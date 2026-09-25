@@ -1,4 +1,5 @@
 import { ROUTES_DEF, STATIONS, getStation, type ZoneId, type Zones } from '../data/network';
+import { BALANCE } from './config';
 import type { GameState } from './types';
 
 /** Sleutel die verandert zodra er een zone opengaat; voor caches. */
@@ -100,5 +101,5 @@ export function unlockPrerequisites(zones: Zones, key: ZoneId): ZoneId[] {
 }
 
 export function getTrainCost(state: GameState, routeIdx: number): number {
-  return Math.floor(state.costs.baseTrain * Math.pow(1.3, state.trainCounts[routeIdx] ?? 0));
+  return Math.floor(state.costs.baseTrain * Math.pow(BALANCE.train.costGrowth, state.trainCounts[routeIdx] ?? 0));
 }

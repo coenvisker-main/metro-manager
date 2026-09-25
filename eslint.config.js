@@ -14,7 +14,12 @@ export default tseslint.config(
     },
   },
   {
-    files: ['tests/**', 'vite.config.ts', 'eslint.config.js'],
+    files: ['tests/**', 'scripts/**', 'vite.config.ts', 'eslint.config.js'],
     languageOptions: { globals: { ...globals.node } },
+  },
+  {
+    // Scripts schrijven hun uitkomst naar de terminal.
+    files: ['scripts/**'],
+    rules: { 'no-console': 'off' },
   },
 );

@@ -1,5 +1,5 @@
 import { STATIONS, cloneZones, getStation, type ZoneId, type Zones } from '../data/network';
-import { BASE_SPEED, GAME_CONFIG, INITIAL_TRAIN_ROUTES, MAX_FRAME_MS, STEP_MS } from './config';
+import { BALANCE, MAX_FRAME_MS, STEP_MS } from './config';
 import { Layout } from './layout';
 import { JourneyPlanner } from './planner';
 import { areStationsConnected, canUnlockZone, getTrainCost, getUnlockedPath } from './routing';
@@ -72,7 +72,7 @@ export class Game implements SimContext {
   }
 
   spawnInitialTrains(): void {
-    for (const routeIdx of INITIAL_TRAIN_ROUTES) {
+    for (const routeIdx of BALANCE.start.trainRoutes) {
       this.state.trains.push(new Train(this, routeIdx));
       this.state.trainCounts[routeIdx] = (this.state.trainCounts[routeIdx] ?? 0) + 1;
     }
@@ -150,20 +150,21 @@ export class Game implements SimContext {
     const now = state.time;
 
     // Hogere snelheid betekent ook sneller spawnen en minder geduld (tijd loopt "sneller").
-    const speedFactor = state.globalSpeed / BASE_SPEED;
+    const speedFactor = state.globalSpeed / BALANCE.time.referenceSpeed;
 
-    const baseSpawnRate = 1000 / (1 + this.unlockedStationCount * 0.05);
+    const { demand } = BALANCE;
+    const baseSpawnRate = demand.spawnInterval / (1 + this.unlockedStationCount * demand.spawnIntervalPerStation);
     const spawnRate = baseSpawnRate / speedFactor;
 
     if (now - state.lastSpawnTime > spawnRate) {
-      if (this.random() > 0.3) this.spawnPassenger();
+      if (this.random() > 1 - demand.spawnChance) this.spawnPassenger();
       state.lastSpawnTime = now;
     }
 
-    // Subsidie elke 10 s, afhankelijk van tevredenheid (voorkomt vastlopen zonder geld).
+    // Subsidie, afhankelijk van tevredenheid (voorkomt vastlopen zonder geld).
     if (!state.lastSubsidyTime) state.lastSubsidyTime = now;
-    if (now - state.lastSubsidyTime > 10000) {
-      const subsidy = Math.floor(state.reputation * 1.5);
+    if (now - state.lastSubsidyTime > BALANCE.subsidy.interval) {
+      const subsidy = Math.floor(state.reputation * BALANCE.subsidy.perReputation);
       if (subsidy > 0) {
         this.addMoney(subsidy);
         this.popup(`+€${subsidy} Subsidie`, this.layout.width / 2, 50, 'subsidy');
@@ -176,7 +177,7 @@ export class Game implements SimContext {
       const p = state.waitingPassengers[i]!;
       if (now - p.waitingSince > effectivePatience) {
         state.waitingPassengers.splice(i, 1);
-        state.reputation = Math.max(0, state.reputation - 1);
+        state.reputation = Math.max(0, state.reputation - BALANCE.penalty.reputationPerExpired);
         state.passengersExpired++;
       }
     }
@@ -190,7 +191,7 @@ export class Game implements SimContext {
     const state = this.state;
     if (state.gameOver) return;
 
-    if (state.reputation <= GAME_CONFIG.CRITICAL_REP_THRESHOLD) {
+    if (state.reputation <= BALANCE.limits.reputationGameOver) {
       this.triggerGameOver('De RET is failliet verklaard wegens ontevreden reizigers.');
       return;
     }
@@ -200,16 +201,16 @@ export class Game implements SimContext {
 
     // Een station dat niet (meer) overvol is, ook een leeg station, begint later weer bij nul.
     for (const stationId of Object.keys(state.overloadedStations)) {
-      if ((counts[stationId] ?? 0) < GAME_CONFIG.MAX_STATION_CAPACITY) delete state.overloadedStations[stationId];
+      if ((counts[stationId] ?? 0) < BALANCE.limits.stationCapacity) delete state.overloadedStations[stationId];
     }
 
     const now = this.now();
     for (const [stationId, count] of Object.entries(counts)) {
-      if (count < GAME_CONFIG.MAX_STATION_CAPACITY) continue;
+      if (count < BALANCE.limits.stationCapacity) continue;
       const overloadedSince = state.overloadedStations[stationId];
       if (overloadedSince === undefined) {
         state.overloadedStations[stationId] = now;
-      } else if (now - overloadedSince > GAME_CONFIG.OVERLOAD_GRACE_PERIOD) {
+      } else if (now - overloadedSince > BALANCE.limits.overloadGracePeriod) {
         this.triggerGameOver(`Station ${getStation(stationId).name} is gesloten door de politie wegens verdrukking.`);
         return;
       }
@@ -263,23 +264,24 @@ export class Game implements SimContext {
     if (state.money < cost) return false;
     state.money -= cost;
 
+    const upgrade = BALANCE.upgrades[type];
+    state.costs[type] = Math.floor(cost * upgrade.costGrowth);
     switch (type) {
       case 'speed':
-        state.costs.speed = Math.floor(cost * 1.5);
-        state.globalSpeed *= 1.15;
+        state.globalSpeed *= BALANCE.upgrades.speed.speedFactor;
         break;
       case 'capacity':
-        state.costs.capacity = Math.floor(cost * 1.5);
-        state.trainCapacity += 10;
+        state.trainCapacity += BALANCE.upgrades.capacity.extraCapacity;
         break;
       case 'comfort':
-        state.costs.comfort = Math.floor(cost * 1.5);
-        state.baseTicketPrice += 2.0;
-        state.passengerPatience += 5000;
+        state.baseTicketPrice += BALANCE.upgrades.comfort.extraTicketPrice;
+        state.passengerPatience += BALANCE.upgrades.comfort.extraPatience;
         break;
       case 'marketing':
-        state.costs.marketing = Math.floor(cost * 1.3);
-        state.reputation = Math.min(100, state.reputation + 25);
+        state.reputation = Math.min(
+          BALANCE.limits.maxReputation,
+          state.reputation + BALANCE.upgrades.marketing.extraReputation,
+        );
         break;
     }
     return true;

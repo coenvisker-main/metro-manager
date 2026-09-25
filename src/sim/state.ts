@@ -1,3 +1,4 @@
+import { BALANCE } from './config';
 import type { GameState } from './types';
 
 export function createInitialState(): GameState {
@@ -5,16 +6,16 @@ export function createInitialState(): GameState {
     time: 0,
     paused: false,
     gameOver: false,
-    money: 600,
+    money: BALANCE.start.money,
     passengersTransported: 0,
     passengersExpired: 0,
     transfers: 0,
     totalTravelTime: 0,
-    reputation: 100,
-    baseTicketPrice: 8.0,
-    globalSpeed: 0.012,
-    trainCapacity: 20,
-    passengerPatience: 60000,
+    reputation: BALANCE.start.reputation,
+    baseTicketPrice: BALANCE.start.ticketPrice,
+    globalSpeed: BALANCE.start.trainSpeed,
+    trainCapacity: BALANCE.start.trainCapacity,
+    passengerPatience: BALANCE.start.patience,
     trains: [],
     waitingPassengers: [],
     lastSpawnTime: 0,
@@ -22,11 +23,11 @@ export function createInitialState(): GameState {
     trainCounts: [0, 0, 0, 0, 0],
     overloadedStations: {},
     costs: {
-      baseTrain: 500,
-      speed: 300,
-      capacity: 400,
-      marketing: 150,
-      comfort: 600,
+      baseTrain: BALANCE.train.baseCost,
+      speed: BALANCE.upgrades.speed.cost,
+      capacity: BALANCE.upgrades.capacity.cost,
+      marketing: BALANCE.upgrades.marketing.cost,
+      comfort: BALANCE.upgrades.comfort.cost,
     },
   };
 }

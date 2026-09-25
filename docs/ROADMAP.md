@@ -39,12 +39,12 @@ Doel: alle tests in `tests/known-bugs.test.ts` groen, zonder de spelbeleving te 
 
 Opgedeeld in deel-PR's (afgestemd met Coen, 24 sep 2026):
 
-| Deel | Bugs       | Inhoud                                             | Status |
-| ---- | ---------- | -------------------------------------------------- | ------ |
-| 2a   | B3, B6, B7 | Tijdmodel: spelklok, vaste tijdstap, kaarteenheden | ✅     |
-| 2b   | B1, B2     | Waypoints puur visueel, reisplanner met etappes    | ✅     |
-| 2c   | B4, B5, B8 | Zones en spoor, plus tellers in de zijbalk         | ✅     |
-| 2d   | –          | Balans-config en bot-simulatie                     | 🔜     |
+| Deel | Bugs       | Inhoud                                             | Status     |
+| ---- | ---------- | -------------------------------------------------- | ---------- |
+| 2a   | B3, B6, B7 | Tijdmodel: spelklok, vaste tijdstap, kaarteenheden | ✅         |
+| 2b   | B1, B2     | Waypoints puur visueel, reisplanner met etappes    | ✅         |
+| 2c   | B4, B5, B8 | Zones en spoor, plus tellers in de zijbalk         | ✅         |
+| 2d   | –          | Balans-config en bot-simulatie                     | 🔜 2d-1 ✅ |
 
 Besluiten 2a:
 
@@ -65,6 +65,18 @@ Besluiten 2c:
   West 2; Ommoord en Capelle na Oost 1; Nesselande na Ommoord.
 - Bij het openen van een zone blijft een metro tussen dezelfde twee stations rijden.
 - Tellers in het blok onder Beheer, totaal sinds de start: verlopen, overstappen, gemiddelde reistijd.
+
+Besluiten 2d (25 sep):
+
+- Meting vooraf (20 min, seeds 1–3): "niets doen" gaat nooit game over (~€62k, 0 verlopen) en een domme uitbreider
+  ook niet. Het spel heeft geen druk: de vraag groeit niet, metro's kosten niks, en subsidie beloont stilzitten.
+- 2d-1 (meetlat, zonder gedragsverandering): alle balansgetallen in `BALANCE` (`src/sim/config.ts`), botjes en
+  `npm run balance` (`scripts/`). Bewezen gelijk gedrag: identieke eindstaat in 11 scenario's. De upgrademeldingen
+  lezen hun getallen uit de config (lost U3 op).
+- 2d-2 (afstellen), gekozen door Coen: groeiende vraag met de speltijd; exploitatiekosten per metro; subsidie alleen
+  als vangnet bij laag saldo; "Frequentie verhogen" maakt alleen metro's sneller (niet meer sneller spawnen en korter
+  geduld). Doel: eindeloos en steeds zwaarder; niets doen game over binnen ~5 min, een goede speler 20+ min.
+  Getallen stelt Claude voor met bot-uitkomsten; Coen beslist na spelen. De doelen worden tests.
 
 Afspraken 2c (24 sep):
 
@@ -137,7 +149,7 @@ Balans (in dezelfde fase, meetbaar maken):
 | ----- | ----------------------------------------------------------------------------------------------------------- |
 | ✅ U1 | Reset tijdens pauze: pauzescherm blijft staan en de knop werkt omgekeerd.                                   |
 | U2    | Na game over blijft de zijbalk bruikbaar (modal dekt alleen de kaart).                                      |
-| U3    | Comfort-upgrade meldt "+€3.00" maar geeft €2.                                                               |
+| ✅ U3 | Comfort-upgrade meldt "+€3.00" maar geeft €2.                                                               |
 | U4    | `updateUI()` bouwt de uitbreidingslijst bij elke geldmutatie opnieuw op (lokaal al opgelost met een split). |
 | U5    | Canvas scherp op hoge-DPI-schermen (`devicePixelRatio`).                                                    |
 | U6    | Parallelle lijnen loodrecht op het spoor verschuiven in plaats van diagonaal.                               |
