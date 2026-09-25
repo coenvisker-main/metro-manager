@@ -19,7 +19,7 @@ export function createInitialState(): GameState {
     trains: [],
     waitingPassengers: [],
     lastSpawnTime: 0,
-    lastSubsidyTime: 0,
+    lastCashflowTime: 0,
     trainCounts: [0, 0, 0, 0, 0],
     overloadedStations: {},
     costs: {

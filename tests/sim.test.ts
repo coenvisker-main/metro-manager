@@ -74,7 +74,7 @@ describe('simulatie', () => {
     expect(t.game.state.passengersTransported).toBe(1);
   });
 
-  it('wachtende reizigers verlopen na het (geschaalde) geduld en kosten 1% tevredenheid', () => {
+  it('wachtende reizigers verlopen na hun geduld (30 s) en kosten 1% tevredenheid', () => {
     const t = createTestGame();
     quiet(t.game);
     t.game.state.trains = [];
@@ -241,7 +241,7 @@ describe('spelersacties', () => {
     expect(game.state.trainCapacity).toBe(30);
     game.buyUpgrade('comfort');
     expect(game.state.baseTicketPrice).toBe(10);
-    expect(game.state.passengerPatience).toBe(65000);
+    expect(game.state.passengerPatience).toBe(32_500);
     game.state.reputation = 90;
     game.buyUpgrade('marketing');
     expect(game.state.reputation).toBe(100);

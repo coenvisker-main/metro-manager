@@ -50,10 +50,10 @@ export function createTestGame(
   };
 }
 
-/** Zet willekeurige spawns en subsidie uit, zodat een test één scenario isoleert. */
+/** Zet willekeurige spawns en de kasstroom (exploitatiekosten, subsidie) uit, zodat een test één scenario isoleert. */
 export function quiet(game: Game): void {
   game.state.lastSpawnTime = Infinity;
-  game.state.lastSubsidyTime = Infinity;
+  game.state.lastCashflowTime = Infinity;
   game.state.waitingPassengers = [];
 }
 

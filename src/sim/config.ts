@@ -10,34 +10,27 @@ export const BALANCE = {
     ticketPrice: 8,
     /**
      * Treinsnelheid: voortgang per stap van 1/60 s over een afstand van `train.referenceDistance`
-     * kaarteenheden. Hoger is sneller. Zie ook `time.referenceSpeed`.
+     * kaarteenheden. Hoger is sneller.
      */
     trainSpeed: 0.012,
     /** Reizigers per metro. */
     trainCapacity: 20,
-    /** Hoe lang een reiziger op een perron wil wachten, vóór schaling met de snelheid (`time.referenceSpeed`). */
-    patience: 60_000,
+    /** Hoe lang een reiziger op een perron wil wachten. */
+    patience: 30_000,
     /** Lijnen (index in ROUTES_DEF) waarop bij de start een metro rijdt: D en A. */
     trainRoutes: [3, 0] as readonly number[],
-  },
-
-  /**
-   * Snelheid als tijdsfactor: hogere treinsnelheid laat ook reizigers sneller verschijnen en korter
-   * wachten (factor = treinsnelheid / referentiesnelheid). Bij de start is de factor 2, dus het
-   * effectieve geduld 30 s.
-   */
-  time: {
-    referenceSpeed: 0.006,
   },
 
   /** Hoeveel reizigers er verschijnen. */
   demand: {
     /** Basistijd tussen twee spawnpogingen. */
-    spawnInterval: 1000,
+    spawnInterval: 500,
     /** Elk open station maakt de basistijd korter: interval / (1 + stations × deze factor). */
     spawnIntervalPerStation: 0.05,
     /** Kans dat een spawnpoging echt een reiziger oplevert. */
     spawnChance: 0.7,
+    /** De vraag groeit met de speltijd: × (1 + minuten × deze factor). 0,1 = na 10 minuten dubbel zoveel reizigers. */
+    growthPerMinute: 0.1,
   },
 
   /** Wat een aangekomen reiziger oplevert. */
@@ -55,9 +48,16 @@ export const BALANCE = {
     reputationPerExpired: 1,
   },
 
-  /** Subsidie: elke `interval` ms tevredenheid × `perReputation` euro. */
-  subsidy: {
+  /** Kasstroom: elke `interval` ms worden de exploitatiekosten afgeschreven en eventueel subsidie uitbetaald. */
+  cashflow: {
     interval: 10_000,
+    /** Exploitatiekosten per metro per minuut. Het saldo mag negatief worden; dan kun je niks kopen. */
+    costPerTrainPerMinute: 150,
+  },
+
+  /** Subsidie als vangnet: alleen als het saldo onder `moneyThreshold` zakt, tevredenheid × `perReputation` euro. */
+  subsidy: {
+    moneyThreshold: 300,
     perReputation: 1.5,
   },
 
@@ -76,12 +76,12 @@ export const BALANCE = {
 
   /** Investeringen. Na elke aankoop wordt de prijs `costGrowth` keer hoger. */
   upgrades: {
-    /** "Frequentie verhogen". */
+    /** "Frequentie verhogen": alleen snellere metro's. */
     speed: { cost: 300, costGrowth: 1.5, speedFactor: 1.15 },
     /** "Langere metro's". */
     capacity: { cost: 400, costGrowth: 1.5, extraCapacity: 10 },
     /** "Station faciliteiten". */
-    comfort: { cost: 600, costGrowth: 1.5, extraTicketPrice: 2, extraPatience: 5000 },
+    comfort: { cost: 600, costGrowth: 1.5, extraTicketPrice: 2, extraPatience: 2500 },
     /** "Promotie campagne". */
     marketing: { cost: 150, costGrowth: 1.3, extraReputation: 25 },
   },

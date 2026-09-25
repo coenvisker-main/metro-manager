@@ -49,7 +49,8 @@ export interface GameState {
   trains: Train[];
   waitingPassengers: Passenger[];
   lastSpawnTime: number;
-  lastSubsidyTime: number;
+  /** Speltijd (ms) van de laatste kasstroom (exploitatiekosten en subsidie). */
+  lastCashflowTime: number;
   trainCounts: number[];
   /** stationId -> speltijd (ms) waarop het station overvol raakte. */
   overloadedStations: Record<string, number>;

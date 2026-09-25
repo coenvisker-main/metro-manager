@@ -1,6 +1,7 @@
 // Botjes en een deterministische simulatie-runner, om de spelbalans te meten (`npm run balance`).
 // Draait de simulatie zonder browser: vaste seed, vaste stappen, geen wandklok.
 import { ROUTES_DEF, type ZoneId } from '../src/data/network';
+import { BALANCE } from '../src/sim/config';
 import { Game } from '../src/sim/game';
 import { Layout } from '../src/sim/layout';
 import { getLineStops } from '../src/sim/routing';
@@ -56,10 +57,13 @@ export const BOTS: readonly Bot[] = [
   {
     name: 'beheerder',
     description:
-      'Redelijk: metro erbij op de drukste lijn, capaciteit als metro’s vol zitten, campagne bij lage tevredenheid, en pas uitbreiden als het rustig is.',
+      'Redelijk: metro erbij op de drukste lijn (als de exploitatie te betalen blijft), capaciteit als metro’s vol zitten, campagne bij lage tevredenheid, snellere metro’s bij geld over, en pas uitbreiden als het rustig is.',
     act(game) {
       const { state } = game;
       if (state.reputation < 50 && game.buyUpgrade('marketing')) return;
+
+      // Buffer: twee minuten exploitatie van de vloot plus één extra metro.
+      const reserve = 2 * (game.operatingCostPerMinute + BALANCE.cashflow.costPerTrainPerMinute);
 
       // Drukste lijn: meeste wachtenden per metro.
       const trainsPerLine = (i: number) => state.trains.filter((t) => t.routeDefIndex === i).length;
@@ -72,19 +76,20 @@ export const BOTS: readonly Bot[] = [
           busiestLoad = load;
         }
       }
-      if (busiest !== undefined && busiestLoad > 8) {
+      if (busiest !== undefined && busiestLoad > 8 && state.money - game.trainCost(busiest) > reserve) {
         game.buyTrain(busiest, game.unlockedPath(busiest)[0]!);
         return;
       }
 
       const onBoard = state.trains.reduce((sum, t) => sum + t.passengers.length, 0);
       const occupancy = onBoard / Math.max(1, state.trains.length * state.trainCapacity);
-      if (occupancy > 0.8 && game.buyUpgrade('capacity')) return;
+      if (occupancy > 0.8 && state.money - state.costs.capacity > reserve && game.buyUpgrade('capacity')) return;
+      if (state.money > 3 * state.costs.speed + reserve && game.buyUpgrade('speed')) return;
 
       const zone = openableZones(game)[0];
       // Rustig = gemiddeld minder dan een halve wachtende per station.
       const calm = state.waitingPassengers.length < game.unlockedStationCount * 0.5;
-      if (zone && calm && state.money > game.zones[zone].cost + 300) {
+      if (zone && calm && state.money > game.zones[zone].cost + reserve) {
         game.unlockZone(zone);
       }
     },

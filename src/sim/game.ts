@@ -90,6 +90,16 @@ export class Game implements SimContext {
     return STATIONS.filter((s) => this.zones[s.zone].unlocked).length;
   }
 
+  /** Hoeveel drukker het is dan bij de start: groeit met de speltijd. */
+  get demandMultiplier(): number {
+    return 1 + (this.state.time / 60_000) * BALANCE.demand.growthPerMinute;
+  }
+
+  /** Exploitatiekosten van de hele vloot per minuut. */
+  get operatingCostPerMinute(): number {
+    return this.state.trains.length * BALANCE.cashflow.costPerTrainPerMinute;
+  }
+
   /**
    * Laat een reiziger verschijnen op een open station, met als bestemming een ander open station dat via
    * spoor bereikbaar is. Waypoints doen niet mee. Of er een metro rijdt, maakt niet uit: een onbediende
@@ -149,33 +159,25 @@ export class Game implements SimContext {
     state.time += STEP_MS;
     const now = state.time;
 
-    // Hogere snelheid betekent ook sneller spawnen en minder geduld (tijd loopt "sneller").
-    const speedFactor = state.globalSpeed / BALANCE.time.referenceSpeed;
-
+    // Reizigers: meer open stations en een groeiende vraag betekenen vaker een nieuwe reiziger.
     const { demand } = BALANCE;
-    const baseSpawnRate = demand.spawnInterval / (1 + this.unlockedStationCount * demand.spawnIntervalPerStation);
-    const spawnRate = baseSpawnRate / speedFactor;
+    const spawnRate =
+      demand.spawnInterval / (1 + this.unlockedStationCount * demand.spawnIntervalPerStation) / this.demandMultiplier;
 
     if (now - state.lastSpawnTime > spawnRate) {
       if (this.random() > 1 - demand.spawnChance) this.spawnPassenger();
       state.lastSpawnTime = now;
     }
 
-    // Subsidie, afhankelijk van tevredenheid (voorkomt vastlopen zonder geld).
-    if (!state.lastSubsidyTime) state.lastSubsidyTime = now;
-    if (now - state.lastSubsidyTime > BALANCE.subsidy.interval) {
-      const subsidy = Math.floor(state.reputation * BALANCE.subsidy.perReputation);
-      if (subsidy > 0) {
-        this.addMoney(subsidy);
-        this.popup(`+€${subsidy} Subsidie`, this.layout.width / 2, 50, 'subsidy');
-      }
-      state.lastSubsidyTime = now;
+    if (!state.lastCashflowTime) state.lastCashflowTime = now;
+    if (now - state.lastCashflowTime > BALANCE.cashflow.interval) {
+      this.cashflow();
+      state.lastCashflowTime = now;
     }
 
-    const effectivePatience = state.passengerPatience / speedFactor;
     for (let i = state.waitingPassengers.length - 1; i >= 0; i--) {
       const p = state.waitingPassengers[i]!;
-      if (now - p.waitingSince > effectivePatience) {
+      if (now - p.waitingSince > state.passengerPatience) {
         state.waitingPassengers.splice(i, 1);
         state.reputation = Math.max(0, state.reputation - BALANCE.penalty.reputationPerExpired);
         state.passengersExpired++;
@@ -185,6 +187,24 @@ export class Game implements SimContext {
     for (const t of state.trains) t.update(STEP_MS);
 
     this.checkSurvivalRules();
+  }
+
+  /** Exploitatiekosten afschrijven; subsidie alleen als vangnet bij een laag saldo. */
+  private cashflow(): void {
+    const state = this.state;
+    const costs = Math.round((this.operatingCostPerMinute * BALANCE.cashflow.interval) / 60_000);
+    if (costs > 0) {
+      this.addMoney(-costs);
+      this.popup(`-€${costs} Exploitatie`, this.layout.width / 2, 80, 'error');
+    }
+
+    if (state.money < BALANCE.subsidy.moneyThreshold) {
+      const subsidy = Math.floor(state.reputation * BALANCE.subsidy.perReputation);
+      if (subsidy > 0) {
+        this.addMoney(subsidy);
+        this.popup(`+€${subsidy} Subsidie`, this.layout.width / 2, 50, 'subsidy');
+      }
+    }
   }
 
   checkSurvivalRules(): void {
