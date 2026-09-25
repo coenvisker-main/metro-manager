@@ -578,15 +578,22 @@ describe('balans: groei, kosten en capaciteit', () => {
     expect(opened).toEqual(schedule.slice(0, 3).map((s) => s.zone));
   });
 
-  it('spoorcapaciteit: hoogstens één metro per drie haltes op een lijn', () => {
+  it('gedeeld spoor, gedeelde capaciteit: D en E rijden in het centrum over dezelfde haltes', () => {
     const { game } = createTestGame();
     game.state.money = 100_000;
-    expect(game.maxTrains(3)).toBe(1); // D in het centrum: 4 haltes
-    expect(game.buyTrain(3, 'cs')).toBe(false); // de startmetro zit er al
-    game.zones.kop_zuid.unlocked = true;
-    expect(game.maxTrains(3)).toBe(2); // 7 haltes
+    // Startmetro's: D en A. Er past nog één metro bij op het spoor van D/E.
+    expect(game.canAddTrain(4)).toBe(true);
     expect(game.buyTrain(3, 'cs')).toBe(true);
+    // Nu zit het spoor van D/E vol, ook al rijdt er nog geen enkele E.
+    expect(game.canAddTrain(4)).toBe(false);
+    expect(game.buyTrain(4, 'cs')).toBe(false);
     expect(game.buyTrain(3, 'cs')).toBe(false);
+    // Op de stam van A/B/C past er nog één bij, ongeacht welke lijn (de D-metro's tellen via Beurs een beetje mee).
+    expect(game.buyTrain(1, 'dijkzigt')).toBe(true);
+    expect(game.buyTrain(2, 'dijkzigt')).toBe(false); // na B zit de stam vol
+    // Als de stad groeit, groeit de capaciteit mee.
+    game.zones.kop_zuid.unlocked = true;
+    expect(game.canAddTrain(4)).toBe(true);
   });
 
   it('exploitatiekosten worden elke kasstroomtermijn afgeschreven', () => {

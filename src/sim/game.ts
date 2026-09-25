@@ -1,4 +1,4 @@
-import { STATIONS, cloneZones, getStation, type ZoneId, type Zones } from '../data/network';
+import { ROUTES_DEF, STATIONS, cloneZones, getStation, type ZoneId, type Zones } from '../data/network';
 import { BALANCE, MAX_FRAME_MS, STEP_MS } from './config';
 import { Layout } from './layout';
 import { JourneyPlanner } from './planner';
@@ -269,15 +269,51 @@ export class Game implements SimContext {
     return this.state.trains.filter((t) => t.routeDefIndex === routeIdx).length;
   }
 
-  /** Spoorcapaciteit: hoeveel metro's er op een lijn passen, naar de lengte van het rijdbare stuk. */
-  maxTrains(routeIdx: number): number {
-    return Math.max(1, Math.floor(getLineStops(this.zones, routeIdx).length / BALANCE.train.stopsPerTrain));
+  /**
+   * Gedeeld spoor: de capaciteit van een lijn is het aantal haltes gedeeld door `stopsPerTrain`. Elke metro
+   * telt mee voor het deel van zijn traject dat over die lijn loopt: een D-metro telt volledig mee op het
+   * spoor van E (dezelfde haltes), en maar voor een kwart op A (alleen Beurs is gedeeld).
+   */
+  private trackUsage(): { stops: Set<string>[]; load: number[]; capacity: number[] } {
+    const stops = ROUTES_DEF.map((_, i) => new Set(getLineStops(this.zones, i)));
+    const overlap = (a: number, b: number) => [...stops[a]!].filter((id) => stops[b]!.has(id)).length;
+    const load = ROUTES_DEF.map((_, line) =>
+      this.state.trains.reduce((sum, t) => {
+        const own = stops[t.routeDefIndex]!.size;
+        return own > 0 ? sum + overlap(t.routeDefIndex, line) / own : sum;
+      }, 0),
+    );
+    const capacity = stops.map((s) => s.size / BALANCE.train.stopsPerTrain);
+    return { stops, load, capacity };
   }
 
-  /** Koopt een metro op een lijn, startend bij `spawnId`. Geeft false bij te weinig geld of een volle lijn. */
+  /** Past er nog een metro bij op deze lijn, zonder dat ergens gedeeld spoor overvol raakt? */
+  canAddTrain(routeIdx: number): boolean {
+    const { stops, load, capacity } = this.trackUsage();
+    const own = stops[routeIdx]!;
+    if (own.size < 2) return false;
+    return ROUTES_DEF.every((_, line) => {
+      const shared = [...own].filter((id) => stops[line]!.has(id)).length;
+      return shared === 0 || load[line]! + shared / own.size <= capacity[line]! + 1e-9;
+    });
+  }
+
+  /** Hoe vol het drukste stuk spoor van deze lijn zit (1 = vol). */
+  trackOccupancy(routeIdx: number): number {
+    const { stops, load, capacity } = this.trackUsage();
+    const own = stops[routeIdx]!;
+    let max = 0;
+    ROUTES_DEF.forEach((_, line) => {
+      const shares = [...own].some((id) => stops[line]!.has(id));
+      if (shares && capacity[line]! > 0) max = Math.max(max, load[line]! / capacity[line]!);
+    });
+    return max;
+  }
+
+  /** Koopt een metro op een lijn, startend bij `spawnId`. Geeft false bij te weinig geld of vol spoor. */
   buyTrain(routeIdx: number, spawnId: string): boolean {
     const cost = this.trainCost(routeIdx);
-    if (this.state.money < cost || this.trainsOnLine(routeIdx) >= this.maxTrains(routeIdx)) return false;
+    if (this.state.money < cost || !this.canAddTrain(routeIdx)) return false;
     this.state.money -= cost;
     this.state.trains.push(new Train(this, routeIdx, spawnId));
     this.state.trainCounts[routeIdx] = (this.state.trainCounts[routeIdx] ?? 0) + 1;

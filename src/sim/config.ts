@@ -26,11 +26,11 @@ export const BALANCE = {
     /** Basistijd tussen twee spawnpogingen. */
     spawnInterval: 500,
     /** Elk open station maakt de basistijd korter: interval / (1 + stations × deze factor). */
-    spawnIntervalPerStation: 0.05,
+    spawnIntervalPerStation: 0.03,
     /** Kans dat een spawnpoging echt een reiziger oplevert. */
     spawnChance: 0.7,
-    /** De vraag groeit met de speltijd: × (1 + minuten × deze factor). 0,3 = na 10 minuten vier keer zoveel reizigers. */
-    growthPerMinute: 0.3,
+    /** De vraag groeit met de speltijd: × (1 + minuten × deze factor). 0,2 = na 10 minuten drie keer zoveel reizigers. */
+    growthPerMinute: 0.2,
   },
 
   /**
@@ -38,8 +38,8 @@ export const BALANCE = {
    * aansluitende zone open. Lijnen die er al rijden groeien mee; nieuwe lijnen moet de speler bedienen.
    */
   expansion: {
-    firstZoneAfter: 120_000,
-    zoneInterval: 120_000,
+    firstZoneAfter: 60_000,
+    zoneInterval: 60_000,
   },
 
   /** Wat een aangekomen reiziger oplevert. */
@@ -48,7 +48,7 @@ export const BALANCE = {
     tip: 2,
     tipPatienceShare: 0.7,
     /** Afstandsbonus per kaarteenheid hemelsbreed van begin- tot eindstation (afgerond naar beneden). */
-    distanceBonusPerUnit: 0.02,
+    distanceBonusPerUnit: 0.04,
     reputationPerArrival: 0.2,
   },
 
@@ -61,7 +61,7 @@ export const BALANCE = {
   cashflow: {
     interval: 10_000,
     /** Exploitatiekosten per metro per minuut. Het saldo mag negatief worden; dan kun je niks kopen. */
-    costPerTrainPerMinute: 250,
+    costPerTrainPerMinute: 150,
   },
 
   /** Subsidie als vangnet: alleen als het saldo onder `moneyThreshold` zakt, tevredenheid × `perReputation` euro. */
@@ -75,8 +75,11 @@ export const BALANCE = {
     /** Prijs van de eerste metro op een lijn; elke volgende op dezelfde lijn wordt `costGrowth` keer duurder. */
     baseCost: 500,
     costGrowth: 1.3,
-    /** Spoorcapaciteit: hoogstens één metro per zoveel haltes van het rijdbare stuk (minimaal één). */
-    stopsPerTrain: 3,
+    /**
+     * Spoorcapaciteit: per lijn passen er haltes ÷ deze waarde metro's. Gedeeld spoor wordt gedeeld: elke metro telt
+     * mee voor het deel van zijn traject dat over een lijn loopt. Zie `Game.canAddTrain`.
+     */
+    stopsPerTrain: 1.5,
     /** Stilstand bij een station. */
     boardingTime: 500,
     /** Treinsnelheid geldt over deze afstand in kaarteenheden; kortere stukken gaan navenant sneller. */

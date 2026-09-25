@@ -41,7 +41,7 @@ export const BOTS: readonly Bot[] = [
     description: 'Dom: koopt steeds de goedkoopste metro die past, zonder te kijken waar het druk is.',
     act(game) {
       const line = drivableLines(game)
-        .filter((i) => game.trainsOnLine(i) < game.maxTrains(i))
+        .filter((i) => game.canAddTrain(i))
         .sort((a, b) => game.trainCost(a) - game.trainCost(b))[0];
       if (line !== undefined) game.buyTrain(line, game.unlockedPath(line)[0]!);
     },
@@ -54,8 +54,8 @@ export const BOTS: readonly Bot[] = [
       const { state } = game;
       if (state.reputation < 50 && game.buyUpgrade('marketing')) return;
 
-      // Buffer: twee minuten exploitatie van de vloot plus één extra metro.
-      const reserve = 2 * (game.operatingCostPerMinute + BALANCE.cashflow.costPerTrainPerMinute);
+      // Buffer: een halve minuut exploitatie van de vloot plus één extra metro.
+      const reserve = 0.5 * (game.operatingCostPerMinute + BALANCE.cashflow.costPerTrainPerMinute);
       const buy = (line: number) =>
         state.money - game.trainCost(line) > reserve && game.buyTrain(line, game.unlockedPath(line)[0]!);
 
@@ -70,14 +70,14 @@ export const BOTS: readonly Bot[] = [
       let busiest: number | undefined;
       let busiestLoad = 0;
       for (const [line, waiting] of waitingPerLine(game)) {
-        if (game.trainsOnLine(line) >= game.maxTrains(line)) continue;
+        if (!game.canAddTrain(line)) continue;
         const load = waiting / Math.max(1, game.trainsOnLine(line));
         if (load > busiestLoad) {
           busiest = line;
           busiestLoad = load;
         }
       }
-      if (busiest !== undefined && busiestLoad > 8 && buy(busiest)) return;
+      if (busiest !== undefined && busiestLoad > 5 && buy(busiest)) return;
 
       const onBoard = state.trains.reduce((sum, t) => sum + t.passengers.length, 0);
       const occupancy = onBoard / Math.max(1, state.trains.length * state.trainCapacity);

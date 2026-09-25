@@ -85,8 +85,18 @@ Besluiten 2d (25 sep):
   afstandsbonus €0,02 per kaarteenheid (was €0,10: dat was gemiddeld €25 per reis, de echte geldpomp),
   exploitatie €250 per metro per minuut, subsidie onder €300 saldo. Geduld is nu direct 30 s (was 60 s gedeeld door de
   snelheidsfactor 2); de fooidrempel wordt daarmee 21 s reistijd (was 42 s).
-- Uitkomst (`npm run balance`, 20 min, seeds 1–3): niets doen game over na 5:34–5:54; blind kopen na ~14:40;
-  beheerder loopt door (en gaat binnen 40 min onderuit). Doelen als test in `tests/balance.test.ts`.
+- Uitkomst eerste voorstel (20 min, seeds 1–3): niets doen game over na 5:34–5:54; blind kopen na ~14:40;
+  beheerder loopt door. Doelen als test in `tests/balance.test.ts`.
+- Coen speelde (25 sep): geld is in het begin een echte afweging (goed); de druk voelt licht; uitbreiden gaat te traag;
+  en raar dat E nog metro's kon kopen terwijl D op hetzelfde spoor "vol" was (zelfde bij A/B/C). Aangepast:
+  - **Gedeelde spoorcapaciteit:** capaciteit van een lijn = haltes ÷ 1,5; elke metro telt mee voor het deel van zijn
+    traject dat over die lijn loopt (een D-metro telt volledig mee op E, voor een kwart op A via Beurs). Een metro
+    kopen kan alleen als geen enkel spoor waar hij over rijdt overvol raakt.
+  - **Stad groeit elke 60 s** (was 120 s); alles is na ~13 minuten open.
+  - Getallen opnieuw afgesteld: vraaggroei 0,2/min, vraag per station 0,03 (was 0,05), afstandsbonus €0,04,
+    exploitatie €150 per metro per minuut.
+  - Uitkomst (30 min, seeds 1–3): niets doen game over na 5:43–6:17; blind kopen na ~12:35; beheerder 25 min of
+    langer. Laat in het potje (netwerk open, spoor vol) stapelt geld weer op (~€55k na 20 min): let op bij spelen.
 
 Afspraken 2c (24 sep):
 
@@ -177,6 +187,10 @@ Balans (in dezelfde fase, meetbaar maken):
 - Opslaan en laden (localStorage).
 - Moeilijkheidsgraad, met in de makkelijke modus een gratis metro bij het openen van een onbediende lijn (idee Coen).
 - Materieel verkopen of verplaatsen.
+- Idee Coen (25 sep, nog uitwerken en challengen): metro's kopen en zelf op een lijn inzetten binnen een capaciteit van
+  één metro per 1,5 halte over het hele open netwerk, en metro's tegen betaling tussen lijnen verplaatsen als de vraag
+  ergens te hoog wordt. Aandachtspunt: alleen een netwerkbrede grens laat weer stapelen in het centrum toe; combineren
+  met de gedeelde spoorcapaciteit per traject.
 - Extra spelmodi: Dienstdag (spits, evenementen) en Mijlpalen (eindeloos met doelen).
 
 ## ⏳ Fase 6: klaar voor een release

@@ -136,12 +136,12 @@ export class Ui {
     ROUTES_DEF.forEach((route, i) => {
       const btn = el(`btn-train-${i}`);
       const cost = this.game.trainCost(i);
-      const count = this.game.trainsOnLine(i);
-      const max = this.game.maxTrains(i);
-      const full = count >= max;
+      const full = !this.game.canAddTrain(i);
+      const occupancy = Math.round(this.game.trackOccupancy(i) * 100);
       const label = btn.querySelector<HTMLElement>('.cost-label');
       if (label) label.innerText = full ? 'vol' : `€${cost}`;
-      btn.title = `${route.name}\n${count}/${max} metro's${full ? ' (lijn vol)' : `\nKosten: €${cost}`}`;
+      const track = full ? 'spoor vol' : `spoor ${occupancy}% bezet\nKosten: €${cost}`;
+      btn.title = `${route.name}\n${this.game.trainsOnLine(i)} metro's, ${track}`;
       btn.classList.toggle('opacity-50', full || state.money < cost);
     });
 
@@ -182,9 +182,8 @@ export class Ui {
   }
 
   initiateBuyTrain(routeIdx: number): void {
-    const max = this.game.maxTrains(routeIdx);
-    if (this.game.trainsOnLine(routeIdx) >= max) {
-      this.notify(`Lijn ${ROUTES_DEF[routeIdx]?.id} zit vol: maximaal ${max} metro's op dit stuk spoor.`);
+    if (!this.game.canAddTrain(routeIdx)) {
+      this.notify(`Het spoor van lijn ${ROUTES_DEF[routeIdx]?.id} zit vol. Wacht tot de stad groeit.`);
       return;
     }
     const cost = this.game.trainCost(routeIdx);
