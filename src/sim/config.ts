@@ -1,17 +1,106 @@
-// Spelparameters. Fase 2 (zie docs/ROADMAP.md) brengt alle balansgetallen hier samen.
+// Spelparameters. Alle balansgetallen staan in `BALANCE`; meet het effect van een wijziging met
+// `npm run balance`. Zoneprijzen staan bij de zones zelf, in `src/data/network.ts`.
+// Tijden in ms speltijd, geld in euro's, tevredenheid in procentpunten.
 
-export const GAME_CONFIG = {
-  /** Max. wachtenden per station voordat de overvol-timer start. */
-  MAX_STATION_CAPACITY: 40,
-  /** ms speltijd dat een station overvol mag zijn voordat het game over is. */
-  OVERLOAD_GRACE_PERIOD: 10000,
-  /** Onder dit percentage tevredenheid verschijnt de rode waarschuwingsrand. */
-  REP_WARNING_THRESHOLD: 20,
-  /** Op of onder dit percentage tevredenheid is het game over. */
-  CRITICAL_REP_THRESHOLD: 0,
-  /** ms speltijd dat een metro stilstaat bij een station. */
-  BOARDING_TIME: 500,
+export const BALANCE = {
+  /** Beginstand van een nieuw spel. */
+  start: {
+    money: 600,
+    reputation: 100,
+    ticketPrice: 8,
+    /**
+     * Treinsnelheid: voortgang per stap van 1/60 s over een afstand van `train.referenceDistance`
+     * kaarteenheden. Hoger is sneller. Zie ook `time.referenceSpeed`.
+     */
+    trainSpeed: 0.012,
+    /** Reizigers per metro. */
+    trainCapacity: 20,
+    /** Hoe lang een reiziger op een perron wil wachten, vóór schaling met de snelheid (`time.referenceSpeed`). */
+    patience: 60_000,
+    /** Lijnen (index in ROUTES_DEF) waarop bij de start een metro rijdt: D en A. */
+    trainRoutes: [3, 0] as readonly number[],
+  },
+
+  /**
+   * Snelheid als tijdsfactor: hogere treinsnelheid laat ook reizigers sneller verschijnen en korter
+   * wachten (factor = treinsnelheid / referentiesnelheid). Bij de start is de factor 2, dus het
+   * effectieve geduld 30 s.
+   */
+  time: {
+    referenceSpeed: 0.006,
+  },
+
+  /** Hoeveel reizigers er verschijnen. */
+  demand: {
+    /** Basistijd tussen twee spawnpogingen. */
+    spawnInterval: 1000,
+    /** Elk open station maakt de basistijd korter: interval / (1 + stations × deze factor). */
+    spawnIntervalPerStation: 0.05,
+    /** Kans dat een spawnpoging echt een reiziger oplevert. */
+    spawnChance: 0.7,
+  },
+
+  /** Wat een aangekomen reiziger oplevert. */
+  reward: {
+    /** Fooi als de reis sneller was dan `tipPatienceShare` × geduld. */
+    tip: 5,
+    tipPatienceShare: 0.7,
+    /** Afstandsbonus per kaarteenheid hemelsbreed van begin- tot eindstation (afgerond naar beneden). */
+    distanceBonusPerUnit: 0.1,
+    reputationPerArrival: 0.2,
+  },
+
+  /** Wat een reiziger kost die het wachten opgeeft. */
+  penalty: {
+    reputationPerExpired: 1,
+  },
+
+  /** Subsidie: elke `interval` ms tevredenheid × `perReputation` euro. */
+  subsidy: {
+    interval: 10_000,
+    perReputation: 1.5,
+  },
+
+  /** Metro's. */
+  train: {
+    /** Prijs van de eerste metro op een lijn; elke volgende op dezelfde lijn wordt `costGrowth` keer duurder. */
+    baseCost: 500,
+    costGrowth: 1.3,
+    /** Stilstand bij een station. */
+    boardingTime: 500,
+    /** Treinsnelheid geldt over deze afstand in kaarteenheden; kortere stukken gaan navenant sneller. */
+    referenceDistance: 80,
+    /** Kortere stukken dan dit rekenen als deze afstand, zodat een metro niet door een station flitst. */
+    minDistance: 20,
+  },
+
+  /** Investeringen. Na elke aankoop wordt de prijs `costGrowth` keer hoger. */
+  upgrades: {
+    /** "Frequentie verhogen". */
+    speed: { cost: 300, costGrowth: 1.5, speedFactor: 1.15 },
+    /** "Langere metro's". */
+    capacity: { cost: 400, costGrowth: 1.5, extraCapacity: 10 },
+    /** "Station faciliteiten". */
+    comfort: { cost: 600, costGrowth: 1.5, extraTicketPrice: 2, extraPatience: 5000 },
+    /** "Promotie campagne". */
+    marketing: { cost: 150, costGrowth: 1.3, extraReputation: 25 },
+  },
+
+  /** Grenzen en verliescondities. */
+  limits: {
+    maxReputation: 100,
+    /** Max. wachtenden per station voordat de overvol-timer start. */
+    stationCapacity: 40,
+    /** Hoe lang een station overvol mag zijn voordat het game over is. */
+    overloadGracePeriod: 10_000,
+    /** Onder dit percentage tevredenheid verschijnt de rode waarschuwingsrand. */
+    reputationWarning: 20,
+    /** Op of onder dit percentage tevredenheid is het game over. */
+    reputationGameOver: 0,
+  },
 } as const;
+
+// --- Techniek: geen balans ------------------------------------------------
 
 /** Vaste simulatiestap in ms speltijd (60 stappen per seconde), los van de framerate. */
 export const STEP_MS = 1000 / 60;
@@ -29,9 +118,3 @@ export const MAX_FRAME_MS = 250;
  */
 export const MAP_WIDTH = 1200;
 export const MAP_HEIGHT = 800;
-
-/** Referentiesnelheid waartegen spawn-tempo en geduld geschaald worden. */
-export const BASE_SPEED = 0.006;
-
-/** Lijnen (index in ROUTES_DEF) waarop bij de start een metro rijdt: D en A. */
-export const INITIAL_TRAIN_ROUTES: readonly number[] = [3, 0];

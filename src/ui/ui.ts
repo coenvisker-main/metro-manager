@@ -1,6 +1,6 @@
 import { ROUTES_DEF, getStation, type ZoneId } from '../data/network';
 import type { Renderer } from '../render/renderer';
-import { GAME_CONFIG } from '../sim/config';
+import { BALANCE } from '../sim/config';
 import { unlockPrerequisites } from '../sim/routing';
 import type { Game } from '../sim/game';
 import type { PopupType, UpgradeType } from '../sim/types';
@@ -11,11 +11,15 @@ function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return node as T;
 }
 
+// Meldingen na een investering; de getallen komen uit de config, zodat de tekst altijd klopt.
+const { upgrades } = BALANCE;
 const UPGRADES: readonly { type: UpgradeType; notice: string }[] = [
-  { type: 'speed', notice: 'Systeem update: 15% sneller' },
-  { type: 'capacity', notice: 'Vloot uitgebreid: +10 pax/trein' },
-  // BEKENDE BUG (fase 3): tekst zegt +€3.00, de upgrade geeft +€2.00.
-  { type: 'comfort', notice: 'Upgrade: Prijs +€3.00 & Geduld +5s' },
+  { type: 'speed', notice: `Systeem update: ${Math.round((upgrades.speed.speedFactor - 1) * 100)}% sneller` },
+  { type: 'capacity', notice: `Vloot uitgebreid: +${upgrades.capacity.extraCapacity} pax/trein` },
+  {
+    type: 'comfort',
+    notice: `Upgrade: Prijs +€${upgrades.comfort.extraTicketPrice.toFixed(2)} & Geduld +${upgrades.comfort.extraPatience / 1000}s`,
+  },
   { type: 'marketing', notice: 'Campagne geslaagd!' },
 ];
 
@@ -151,7 +155,7 @@ export class Ui {
       list.appendChild(row);
     }
 
-    const showWarning = state.reputation < GAME_CONFIG.REP_WARNING_THRESHOLD && !state.gameOver;
+    const showWarning = state.reputation < BALANCE.limits.reputationWarning && !state.gameOver;
     el('reputation-warning').classList.toggle('hidden', !showWarning);
   }
 

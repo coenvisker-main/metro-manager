@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GAME_CONFIG, MAX_FRAME_MS } from '../src/sim/config';
+import { BALANCE, MAX_FRAME_MS } from '../src/sim/config';
 import { ROUTES_DEF, STATIONS, ZONES_DEF, type ZoneId } from '../src/data/network';
 import { mapDistance } from '../src/sim/layout';
 import {
@@ -165,7 +165,7 @@ describe('tijdmodel', () => {
     const t = createTestGame();
     quiet(t.game);
     t.game.state.trains = [];
-    for (let i = 0; i < GAME_CONFIG.MAX_STATION_CAPACITY; i++) passenger(t.game, 'beurs', 'blaak');
+    for (let i = 0; i < BALANCE.limits.stationCapacity; i++) passenger(t.game, 'beurs', 'blaak');
     t.run(1);
     t.game.togglePause();
     t.runSeconds(15);
@@ -178,7 +178,7 @@ describe('tijdmodel', () => {
     t.game.state.trains = [];
     t.game.state.passengerPatience = 10_000_000;
     const fill = () => {
-      for (let i = 0; i < GAME_CONFIG.MAX_STATION_CAPACITY; i++) passenger(t.game, 'beurs', 'blaak');
+      for (let i = 0; i < BALANCE.limits.stationCapacity; i++) passenger(t.game, 'beurs', 'blaak');
     };
     fill();
     t.run(1);
@@ -265,7 +265,7 @@ describe('verliescondities', () => {
     quiet(t.game);
     t.game.state.trains = [];
     t.game.state.passengerPatience = 10_000_000;
-    for (let i = 0; i < GAME_CONFIG.MAX_STATION_CAPACITY; i++) passenger(t.game, 'beurs', 'blaak');
+    for (let i = 0; i < BALANCE.limits.stationCapacity; i++) passenger(t.game, 'beurs', 'blaak');
     t.runSeconds(9);
     expect(t.game.state.gameOver).toBe(false);
     t.runSeconds(2);

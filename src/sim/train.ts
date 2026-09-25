@@ -1,5 +1,5 @@
 import { ROUTES_DEF, getStation, type RouteDef } from '../data/network';
-import { GAME_CONFIG, STEP_MS } from './config';
+import { BALANCE, STEP_MS } from './config';
 import { mapDistance } from './layout';
 import { getUnlockedPath } from './routing';
 import type { Passenger, SimContext } from './types';
@@ -105,8 +105,9 @@ export class Train {
 
     const distance = mapDistance(currentStationId, targetStationId);
 
-    // `globalSpeed` is de voortgang per stap van 1/60 s over een "eenheidsafstand" van 80 kaarteenheden.
-    const normalizedSpeed = this.ctx.state.globalSpeed * (80 / Math.max(20, distance));
+    // `globalSpeed` is de voortgang per stap van 1/60 s over `referenceDistance` kaarteenheden.
+    const { referenceDistance, minDistance } = BALANCE.train;
+    const normalizedSpeed = this.ctx.state.globalSpeed * (referenceDistance / Math.max(minDistance, distance));
 
     this.progress += normalizedSpeed * (dt / STEP_MS);
     if (this.progress >= 1) this.arrive();
@@ -146,7 +147,7 @@ export class Train {
     }
 
     this.state = 'BOARDING';
-    this.boardingTimer = GAME_CONFIG.BOARDING_TIME;
+    this.boardingTimer = BALANCE.train.boardingTime;
     this.progress = 0;
 
     const offloading: Passenger[] = [];
@@ -163,15 +164,14 @@ export class Train {
         if (currentStationId === p.to) {
           // Eén keer betalen bij aankomst, voor de hele reis.
           const travelTime = this.ctx.now() - p.tripStart;
-          const tip = travelTime < state.passengerPatience * 0.7 ? 5 : 0;
-
-          // Afstandsbonus: €0,10 per kaarteenheid hemelsbreed van begin- tot eindstation (afgerond naar beneden).
-          const distanceBonus = Math.floor(mapDistance(p.origin, p.to) * 0.1);
+          const { reward } = BALANCE;
+          const tip = travelTime < state.passengerPatience * reward.tipPatienceShare ? reward.tip : 0;
+          const distanceBonus = Math.floor(mapDistance(p.origin, p.to) * reward.distanceBonusPerUnit);
 
           totalEarnings += state.baseTicketPrice + distanceBonus + tip;
           state.passengersTransported++;
           state.totalTravelTime += travelTime;
-          state.reputation = Math.min(100, state.reputation + 0.2);
+          state.reputation = Math.min(BALANCE.limits.maxReputation, state.reputation + reward.reputationPerArrival);
         } else {
           // Overstap: wachten op het volgende perron. Het geduld begint hier opnieuw.
           state.transfers++;

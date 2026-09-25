@@ -1,5 +1,5 @@
 import { LABEL_CFG, MAJOR_STATIONS, ROUTES_DEF, STATIONS } from '../data/network';
-import { GAME_CONFIG } from '../sim/config';
+import { BALANCE } from '../sim/config';
 import type { Game } from '../sim/game';
 import { Layout } from '../sim/layout';
 import { getUnlockedPath } from '../sim/routing';
@@ -153,7 +153,7 @@ export class Renderer {
       const count = state.waitingPassengers.filter((p) => p.from === station.id).length;
       if (count === 0) continue;
 
-      const usage = count / GAME_CONFIG.MAX_STATION_CAPACITY;
+      const usage = count / BALANCE.limits.stationCapacity;
       let color = '#10B981'; // groen
       let pulse = false;
       if (usage > 1.0) {
@@ -182,8 +182,9 @@ export class Renderer {
       const overloadedSince = state.overloadedStations[station.id];
       if (overloadedSince !== undefined) {
         const elapsed = now - overloadedSince;
-        const remaining = Math.max(0, GAME_CONFIG.OVERLOAD_GRACE_PERIOD - elapsed);
-        const pct = remaining / GAME_CONFIG.OVERLOAD_GRACE_PERIOD;
+        const grace = BALANCE.limits.overloadGracePeriod;
+        const remaining = Math.max(0, grace - elapsed);
+        const pct = remaining / grace;
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 2;
         ctx.beginPath();
