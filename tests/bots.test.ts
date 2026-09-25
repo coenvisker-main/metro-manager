@@ -12,9 +12,8 @@ describe('balansmeting (npm run balance)', () => {
   });
 
   it('de botjes doen wat ze beloven', () => {
-    const [nothing, expander] = [simulate(BOTS[0]!, 1, 3), simulate(BOTS[1]!, 1, 3)];
+    const [nothing, buyer] = [simulate(BOTS[0]!, 1, 3), simulate(BOTS[1]!, 1, 3)];
     expect(nothing.game.state.trains).toHaveLength(2);
-    expect(nothing.snapshots.at(-1)!.zones).toBe(1);
-    expect(expander.snapshots.at(-1)!.zones).toBeGreaterThan(1);
+    expect(buyer.game.state.trains.length).toBeGreaterThan(2);
   });
 });

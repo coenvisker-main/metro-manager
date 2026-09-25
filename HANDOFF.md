@@ -113,7 +113,8 @@ Openstaande acties:
 - [x] 2a gemerged (PR #4). Coen testte: treinsnelheid goed, pauze bij tab-wissel werkt.
 - [x] 2b gemerged (PR #5). Coen kon individuele reizigers niet volgen; daarom tellers in 2c.
 - [x] 2c gemerged (PR #6).
-- [ ] 2d-1 (meetlat): PR laten mergen. Daarna 2d-2 (afstellen), keuzes staan in de roadmap onder "Besluiten 2d".
+- [x] 2d-1 (meetlat) gemerged (PR #7).
+- [ ] 2d-2 (afstellen): PR laten mergen na spelen door Coen; getallen zijn een voorstel. Daarna is fase 2 klaar.
 - [ ] Na elke deel-PR: CI groen, en Coen test via het artifact `metro-manager.html`.
 - [ ] `.claude/settings.json` bevat `mcpServers` met `@modelcontextprotocol/server-github`.
   - Vermoedelijk leest Claude Code dit daar niet uit, en het package is mogelijk verouderd [niet geverifieerd].
@@ -122,4 +123,4 @@ Openstaande acties:
 - [ ] Optioneel: een devcontainer voor GitHub Codespaces, als Coen zelf wil ontwikkelen zonder lokale Node.
 - [ ] Onbekend of Coens lokale clone al op `main` staat [niet geverifieerd]. Bij lokaal werk eerst `git status` laten checken.
 
-Directe vervolgstap: Controleer of de PR van 2d-1 gemerged is. Zo ja: 2d-2. Bouw de gekozen mechanieken (groeiende vraag, exploitatiekosten, subsidie als vangnet, frequentie-upgrade alleen snelheid), stel getallen voor met `npm run balance`, en leg de doelen vast als test (niets doen game over binnen ~5 min, bot "beheerder" 20+ min). Coen beslist over de getallen na spelen. De bot "beheerder" moet dan ook exploitatiekosten meewegen.
+Directe vervolgstap: Controleer of de PR van 2d-2 gemerged is en of Coen de getallen wil bijstellen (meet elke wijziging met `npm run balance`; `tests/balance.test.ts` bewaakt de doelen). Daarna is fase 2 klaar: bespreek met Coen wat de volgende fase wordt (fase 3 UI of fase 4 campagne, zie roadmap).

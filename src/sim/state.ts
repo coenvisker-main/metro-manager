@@ -20,6 +20,7 @@ export function createInitialState(): GameState {
     waitingPassengers: [],
     lastSpawnTime: 0,
     lastCashflowTime: 0,
+    nextZoneTime: BALANCE.expansion.firstZoneAfter,
     trainCounts: [0, 0, 0, 0, 0],
     overloadedStations: {},
     costs: {

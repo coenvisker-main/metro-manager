@@ -2,7 +2,7 @@ import { STATIONS, cloneZones, getStation, type ZoneId, type Zones } from '../da
 import { BALANCE, MAX_FRAME_MS, STEP_MS } from './config';
 import { Layout } from './layout';
 import { JourneyPlanner } from './planner';
-import { areStationsConnected, canUnlockZone, getTrainCost, getUnlockedPath } from './routing';
+import { areStationsConnected, canUnlockZone, getLineStops, getTrainCost, getUnlockedPath } from './routing';
 import { createInitialState } from './state';
 import { Train } from './train';
 import type { GameState, PopupType, SimContext, UpgradeType } from './types';
@@ -11,6 +11,8 @@ export interface GameHooks {
   onMoneyChanged?(): void;
   onPopup?(text: string, x: number, y: number, type: PopupType): void;
   onGameOver?(reason: string, score: number): void;
+  /** De stad is gegroeid: er is vanzelf een zone opengegaan. */
+  onZoneOpened?(key: ZoneId): void;
 }
 
 export interface GameOptions {
@@ -169,6 +171,15 @@ export class Game implements SimContext {
       state.lastSpawnTime = now;
     }
 
+    if (now >= state.nextZoneTime) {
+      const zone = this.nextZone();
+      if (zone) {
+        this.openZone(zone);
+        this.hooks.onZoneOpened?.(zone);
+      }
+      state.nextZoneTime = zone ? now + BALANCE.expansion.zoneInterval : Infinity;
+    }
+
     if (!state.lastCashflowTime) state.lastCashflowTime = now;
     if (now - state.lastCashflowTime > BALANCE.cashflow.interval) {
       this.cashflow();
@@ -253,28 +264,67 @@ export class Game implements SimContext {
     return getUnlockedPath(this.zones, routeIdx);
   }
 
-  /** Koopt een metro op een lijn, startend bij `spawnId`. Geeft false bij te weinig geld. */
+  /** Metro's op een lijn. */
+  trainsOnLine(routeIdx: number): number {
+    return this.state.trains.filter((t) => t.routeDefIndex === routeIdx).length;
+  }
+
+  /** Spoorcapaciteit: hoeveel metro's er op een lijn passen, naar de lengte van het rijdbare stuk. */
+  maxTrains(routeIdx: number): number {
+    return Math.max(1, Math.floor(getLineStops(this.zones, routeIdx).length / BALANCE.train.stopsPerTrain));
+  }
+
+  /** Koopt een metro op een lijn, startend bij `spawnId`. Geeft false bij te weinig geld of een volle lijn. */
   buyTrain(routeIdx: number, spawnId: string): boolean {
     const cost = this.trainCost(routeIdx);
-    if (this.state.money < cost) return false;
+    if (this.state.money < cost || this.trainsOnLine(routeIdx) >= this.maxTrains(routeIdx)) return false;
     this.state.money -= cost;
     this.state.trains.push(new Train(this, routeIdx, spawnId));
     this.state.trainCounts[routeIdx] = (this.state.trainCounts[routeIdx] ?? 0) + 1;
     return true;
   }
 
-  /** Kan deze zone open, los van het geld? Alleen als hij aansluit op het netwerk (zie `canUnlockZone`). */
+  /** Kan deze zone open? Alleen als hij aansluit op het netwerk (zie `canUnlockZone`). */
   canUnlockZone(key: ZoneId): boolean {
     return canUnlockZone(this.zones, key);
   }
 
-  /** Opent een zone. Geeft false als dat niet kan (te weinig geld, al open of sluit niet aan). */
+  /** De zone die als volgende vanzelf opengaat: de goedkoopste die aansluit. */
+  nextZone(): ZoneId | undefined {
+    return this.zoneSchedule()[0]?.zone;
+  }
+
+  /** Wanneer de nog dichte zones vanzelf opengaan, in volgorde (speltijd in ms). */
+  zoneSchedule(): { zone: ZoneId; at: number }[] {
+    const zones = cloneZones();
+    for (const key of Object.keys(zones) as ZoneId[]) zones[key].unlocked = this.zones[key].unlocked;
+    const schedule: { zone: ZoneId; at: number }[] = [];
+    let at = this.state.nextZoneTime;
+    for (;;) {
+      const next = (Object.keys(zones) as ZoneId[])
+        .filter((z) => canUnlockZone(zones, z))
+        .sort((a, b) => zones[a].cost - zones[b].cost)[0];
+      if (!next || !Number.isFinite(at)) return schedule;
+      schedule.push({ zone: next, at });
+      zones[next].unlocked = true;
+      at += BALANCE.expansion.zoneInterval;
+    }
+  }
+
+  private openZone(key: ZoneId): void {
+    this.zones[key].unlocked = true;
+    for (const t of this.state.trains) t.updatePathCache();
+  }
+
+  /**
+   * Koopt een zone. In het spel gaan zones vanzelf open (zie `BALANCE.expansion`); dit is voor het
+   * debugmenu en tests. Geeft false als dat niet kan (te weinig geld, al open of sluit niet aan).
+   */
   unlockZone(key: ZoneId): boolean {
     const zone = this.zones[key];
     if (this.state.money < zone.cost || !this.canUnlockZone(key)) return false;
     this.state.money -= zone.cost;
-    zone.unlocked = true;
-    for (const t of this.state.trains) t.updatePathCache();
+    this.openZone(key);
     return true;
   }
 

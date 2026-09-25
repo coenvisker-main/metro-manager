@@ -39,12 +39,12 @@ Doel: alle tests in `tests/known-bugs.test.ts` groen, zonder de spelbeleving te 
 
 Opgedeeld in deel-PR's (afgestemd met Coen, 24 sep 2026):
 
-| Deel | Bugs       | Inhoud                                             | Status     |
-| ---- | ---------- | -------------------------------------------------- | ---------- |
-| 2a   | B3, B6, B7 | Tijdmodel: spelklok, vaste tijdstap, kaarteenheden | ✅         |
-| 2b   | B1, B2     | Waypoints puur visueel, reisplanner met etappes    | ✅         |
-| 2c   | B4, B5, B8 | Zones en spoor, plus tellers in de zijbalk         | ✅         |
-| 2d   | –          | Balans-config en bot-simulatie                     | 🔜 2d-1 ✅ |
+| Deel | Bugs       | Inhoud                                             | Status |
+| ---- | ---------- | -------------------------------------------------- | ------ |
+| 2a   | B3, B6, B7 | Tijdmodel: spelklok, vaste tijdstap, kaarteenheden | ✅     |
+| 2b   | B1, B2     | Waypoints puur visueel, reisplanner met etappes    | ✅     |
+| 2c   | B4, B5, B8 | Zones en spoor, plus tellers in de zijbalk         | ✅     |
+| 2d   | –          | Balans-config en bot-simulatie                     | ✅     |
 
 Besluiten 2a:
 
@@ -77,6 +77,16 @@ Besluiten 2d (25 sep):
   als vangnet bij laag saldo; "Frequentie verhogen" maakt alleen metro's sneller (niet meer sneller spawnen en korter
   geduld). Doel: eindeloos en steeds zwaarder; niets doen game over binnen ~5 min, een goede speler 20+ min.
   Getallen stelt Claude voor met bot-uitkomsten; Coen beslist na spelen. De doelen worden tests.
+- 2d-2, eerste meting: met alleen die vier knoppen blijft uitbreiden dom (de beste bot stapelt metro's in het centrum)
+  en stapelt geld op. Daarom gekozen door Coen: **A** de stad groeit vanzelf (om de 2 min opent de goedkoopste
+  aansluitende zone; zones kopen verdwijnt uit het spel; het tabblad Uitbreiding is een tijdlijn) en **B**
+  spoorcapaciteit (hoogstens één metro per drie haltes van het rijdbare stuk). Opbrengst per reis mocht omlaag.
+- Voorgestelde getallen (Coen beslist na spelen): vraaggroei 0,3 per minuut, ticket €5 (was €8), fooi €2 (was €5),
+  afstandsbonus €0,02 per kaarteenheid (was €0,10: dat was gemiddeld €25 per reis, de echte geldpomp),
+  exploitatie €250 per metro per minuut, subsidie onder €300 saldo. Geduld is nu direct 30 s (was 60 s gedeeld door de
+  snelheidsfactor 2); de fooidrempel wordt daarmee 21 s reistijd (was 42 s).
+- Uitkomst (`npm run balance`, 20 min, seeds 1–3): niets doen game over na 5:34–5:54; blind kopen na ~14:40;
+  beheerder loopt door (en gaat binnen 40 min onderuit). Doelen als test in `tests/balance.test.ts`.
 
 Afspraken 2c (24 sep):
 

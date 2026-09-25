@@ -7,7 +7,7 @@ export const BALANCE = {
   start: {
     money: 600,
     reputation: 100,
-    ticketPrice: 8,
+    ticketPrice: 5,
     /**
      * Treinsnelheid: voortgang per stap van 1/60 s over een afstand van `train.referenceDistance`
      * kaarteenheden. Hoger is sneller.
@@ -29,17 +29,26 @@ export const BALANCE = {
     spawnIntervalPerStation: 0.05,
     /** Kans dat een spawnpoging echt een reiziger oplevert. */
     spawnChance: 0.7,
-    /** De vraag groeit met de speltijd: × (1 + minuten × deze factor). 0,1 = na 10 minuten dubbel zoveel reizigers. */
-    growthPerMinute: 0.1,
+    /** De vraag groeit met de speltijd: × (1 + minuten × deze factor). 0,3 = na 10 minuten vier keer zoveel reizigers. */
+    growthPerMinute: 0.3,
+  },
+
+  /**
+   * De stad groeit vanzelf: na `firstZoneAfter` en daarna elke `zoneInterval` gaat de goedkoopste
+   * aansluitende zone open. Lijnen die er al rijden groeien mee; nieuwe lijnen moet de speler bedienen.
+   */
+  expansion: {
+    firstZoneAfter: 120_000,
+    zoneInterval: 120_000,
   },
 
   /** Wat een aangekomen reiziger oplevert. */
   reward: {
     /** Fooi als de reis sneller was dan `tipPatienceShare` × geduld. */
-    tip: 5,
+    tip: 2,
     tipPatienceShare: 0.7,
     /** Afstandsbonus per kaarteenheid hemelsbreed van begin- tot eindstation (afgerond naar beneden). */
-    distanceBonusPerUnit: 0.1,
+    distanceBonusPerUnit: 0.02,
     reputationPerArrival: 0.2,
   },
 
@@ -52,7 +61,7 @@ export const BALANCE = {
   cashflow: {
     interval: 10_000,
     /** Exploitatiekosten per metro per minuut. Het saldo mag negatief worden; dan kun je niks kopen. */
-    costPerTrainPerMinute: 150,
+    costPerTrainPerMinute: 250,
   },
 
   /** Subsidie als vangnet: alleen als het saldo onder `moneyThreshold` zakt, tevredenheid × `perReputation` euro. */
@@ -66,6 +75,8 @@ export const BALANCE = {
     /** Prijs van de eerste metro op een lijn; elke volgende op dezelfde lijn wordt `costGrowth` keer duurder. */
     baseCost: 500,
     costGrowth: 1.3,
+    /** Spoorcapaciteit: hoogstens één metro per zoveel haltes van het rijdbare stuk (minimaal één). */
+    stopsPerTrain: 3,
     /** Stilstand bij een station. */
     boardingTime: 500,
     /** Treinsnelheid geldt over deze afstand in kaarteenheden; kortere stukken gaan navenant sneller. */
