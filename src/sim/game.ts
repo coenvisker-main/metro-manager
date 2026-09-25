@@ -1,16 +1,23 @@
-import { STATIONS, cloneZones, getStation, type ZoneId, type Zones } from '../data/network';
+import { ROUTES_DEF, STATIONS, cloneZones, getStation, type ZoneId, type Zones } from '../data/network';
 import { BALANCE, MAX_FRAME_MS, STEP_MS } from './config';
 import { Layout } from './layout';
 import { JourneyPlanner } from './planner';
-import { areStationsConnected, canUnlockZone, getTrainCost, getUnlockedPath } from './routing';
+import { areStationsConnected, canUnlockZone, getLineStops, getTrainCost, getUnlockedPath } from './routing';
 import { createInitialState } from './state';
 import { Train } from './train';
 import type { GameState, PopupType, SimContext, UpgradeType } from './types';
+
+/** Hoeveel lijnen er bij elk station stoppen (vaste netwerkdata). */
+const LINES_PER_STATION = new Map(
+  STATIONS.map((s) => [s.id, ROUTES_DEF.filter((r) => r.path.includes(s.id)).length] as const),
+);
 
 export interface GameHooks {
   onMoneyChanged?(): void;
   onPopup?(text: string, x: number, y: number, type: PopupType): void;
   onGameOver?(reason: string, score: number): void;
+  /** De stad is gegroeid: er is vanzelf een zone opengegaan. */
+  onZoneOpened?(key: ZoneId): void;
 }
 
 export interface GameOptions {
@@ -90,6 +97,34 @@ export class Game implements SimContext {
     return STATIONS.filter((s) => this.zones[s.zone].unlocked).length;
   }
 
+  /** Hoeveel wachtenden een station aankan: overstapstations (meer lijnen) zijn groter. */
+  stationCapacity(stationId: string): number {
+    const lines = LINES_PER_STATION.get(stationId) ?? 1;
+    return BALANCE.limits.stationCapacity + Math.max(0, lines - 1) * BALANCE.limits.stationCapacityPerExtraLine;
+  }
+
+  /** Aandeel van de volle reizigersstroom dat een zone al trekt (0..1): groeit na het openen. */
+  private zoneRamp(key: ZoneId): number {
+    const openedAt = this.state.zoneOpenedAt[key];
+    if (openedAt === undefined) return 1;
+    return Math.min(1, (this.state.time - openedAt) / BALANCE.expansion.rampUpTime);
+  }
+
+  /** Hoeveel drukker het is dan bij de start: groeit met de speltijd. */
+  get demandMultiplier(): number {
+    return 1 + (this.state.time / 60_000) * BALANCE.demand.growthPerMinute;
+  }
+
+  /** Exploitatiekosten van de hele vloot per minuut. */
+  get operatingCostPerMinute(): number {
+    return this.state.trains.length * this.costPerTrainPerMinute;
+  }
+
+  /** Exploitatiekosten van één metro per minuut: per rijtuig, dus langere metro's kosten meer. */
+  get costPerTrainPerMinute(): number {
+    return (this.state.trainCapacity / BALANCE.train.carCapacity) * BALANCE.cashflow.costPerCarPerMinute;
+  }
+
   /**
    * Laat een reiziger verschijnen op een open station, met als bestemming een ander open station dat via
    * spoor bereikbaar is. Waypoints doen niet mee. Of er een metro rijdt, maakt niet uit: een onbediende
@@ -112,6 +147,10 @@ export class Game implements SimContext {
     }
 
     if (endNode.id === startNode.id) return;
+
+    // Een pas geopende zone trekt nog niet de volle reizigersstroom.
+    const ramp = Math.min(this.zoneRamp(startNode.zone), this.zoneRamp(endNode.zone));
+    if (ramp < 1 && this.random() >= ramp) return;
 
     const now = this.now();
     this.state.waitingPassengers.push({
@@ -149,33 +188,34 @@ export class Game implements SimContext {
     state.time += STEP_MS;
     const now = state.time;
 
-    // Hogere snelheid betekent ook sneller spawnen en minder geduld (tijd loopt "sneller").
-    const speedFactor = state.globalSpeed / BALANCE.time.referenceSpeed;
-
+    // Reizigers: meer open stations en een groeiende vraag betekenen vaker een nieuwe reiziger.
     const { demand } = BALANCE;
-    const baseSpawnRate = demand.spawnInterval / (1 + this.unlockedStationCount * demand.spawnIntervalPerStation);
-    const spawnRate = baseSpawnRate / speedFactor;
+    const spawnRate =
+      demand.spawnInterval / (1 + this.unlockedStationCount * demand.spawnIntervalPerStation) / this.demandMultiplier;
 
     if (now - state.lastSpawnTime > spawnRate) {
       if (this.random() > 1 - demand.spawnChance) this.spawnPassenger();
       state.lastSpawnTime = now;
     }
 
-    // Subsidie, afhankelijk van tevredenheid (voorkomt vastlopen zonder geld).
-    if (!state.lastSubsidyTime) state.lastSubsidyTime = now;
-    if (now - state.lastSubsidyTime > BALANCE.subsidy.interval) {
-      const subsidy = Math.floor(state.reputation * BALANCE.subsidy.perReputation);
-      if (subsidy > 0) {
-        this.addMoney(subsidy);
-        this.popup(`+€${subsidy} Subsidie`, this.layout.width / 2, 50, 'subsidy');
+    if (now >= state.nextZoneTime) {
+      const zone = this.nextZone();
+      if (zone) {
+        this.openZone(zone);
+        this.hooks.onZoneOpened?.(zone);
       }
-      state.lastSubsidyTime = now;
+      state.nextZoneTime = zone ? now + BALANCE.expansion.zoneInterval : Infinity;
     }
 
-    const effectivePatience = state.passengerPatience / speedFactor;
+    if (!state.lastCashflowTime) state.lastCashflowTime = now;
+    if (now - state.lastCashflowTime > BALANCE.cashflow.interval) {
+      this.cashflow();
+      state.lastCashflowTime = now;
+    }
+
     for (let i = state.waitingPassengers.length - 1; i >= 0; i--) {
       const p = state.waitingPassengers[i]!;
-      if (now - p.waitingSince > effectivePatience) {
+      if (now - p.waitingSince > state.passengerPatience) {
         state.waitingPassengers.splice(i, 1);
         state.reputation = Math.max(0, state.reputation - BALANCE.penalty.reputationPerExpired);
         state.passengersExpired++;
@@ -185,6 +225,31 @@ export class Game implements SimContext {
     for (const t of state.trains) t.update(STEP_MS);
 
     this.checkSurvivalRules();
+  }
+
+  /** Exploitatiekosten afschrijven, drukte kost tevredenheid, en subsidie alleen als vangnet bij schuld. */
+  private cashflow(): void {
+    const state = this.state;
+
+    const counts = new Map<string, number>();
+    for (const p of state.waitingPassengers) counts.set(p.from, (counts.get(p.from) ?? 0) + 1);
+    const { penalty } = BALANCE;
+    const crowded = [...counts].filter(([id, n]) => n > this.stationCapacity(id) * penalty.crowdedShare).length;
+    state.reputation = Math.max(0, state.reputation - crowded * penalty.reputationPerCrowdedStation);
+
+    const costs = Math.round((this.operatingCostPerMinute * BALANCE.cashflow.interval) / 60_000);
+    if (costs > 0) {
+      this.addMoney(-costs);
+      this.popup(`-€${costs} Exploitatie`, this.layout.width / 2, 80, 'error');
+    }
+
+    if (state.money < BALANCE.subsidy.moneyThreshold) {
+      const subsidy = Math.floor(state.reputation * BALANCE.subsidy.perReputation);
+      if (subsidy > 0) {
+        this.addMoney(subsidy);
+        this.popup(`+€${subsidy} Subsidie`, this.layout.width / 2, 50, 'subsidy');
+      }
+    }
   }
 
   checkSurvivalRules(): void {
@@ -201,12 +266,12 @@ export class Game implements SimContext {
 
     // Een station dat niet (meer) overvol is, ook een leeg station, begint later weer bij nul.
     for (const stationId of Object.keys(state.overloadedStations)) {
-      if ((counts[stationId] ?? 0) < BALANCE.limits.stationCapacity) delete state.overloadedStations[stationId];
+      if ((counts[stationId] ?? 0) < this.stationCapacity(stationId)) delete state.overloadedStations[stationId];
     }
 
     const now = this.now();
     for (const [stationId, count] of Object.entries(counts)) {
-      if (count < BALANCE.limits.stationCapacity) continue;
+      if (count < this.stationCapacity(stationId)) continue;
       const overloadedSince = state.overloadedStations[stationId];
       if (overloadedSince === undefined) {
         state.overloadedStations[stationId] = now;
@@ -233,36 +298,118 @@ export class Game implements SimContext {
     return getUnlockedPath(this.zones, routeIdx);
   }
 
-  /** Koopt een metro op een lijn, startend bij `spawnId`. Geeft false bij te weinig geld. */
+  /** Metro's op een lijn. */
+  trainsOnLine(routeIdx: number): number {
+    return this.state.trains.filter((t) => t.routeDefIndex === routeIdx).length;
+  }
+
+  /**
+   * Gedeeld spoor: de capaciteit van een lijn is het aantal haltes gedeeld door `stopsPerTrain`. Elke metro
+   * telt mee voor het deel van zijn traject dat over die lijn loopt: een D-metro telt volledig mee op het
+   * spoor van E (dezelfde haltes), en maar voor een kwart op A (alleen Beurs is gedeeld).
+   */
+  private trackUsage(): { stops: Set<string>[]; load: number[]; capacity: number[] } {
+    const stops = ROUTES_DEF.map((_, i) => new Set(getLineStops(this.zones, i)));
+    const overlap = (a: number, b: number) => [...stops[a]!].filter((id) => stops[b]!.has(id)).length;
+    const load = ROUTES_DEF.map((_, line) =>
+      this.state.trains.reduce((sum, t) => {
+        const own = stops[t.routeDefIndex]!.size;
+        return own > 0 ? sum + overlap(t.routeDefIndex, line) / own : sum;
+      }, 0),
+    );
+    const capacity = stops.map((s) => s.size / BALANCE.train.stopsPerTrain);
+    return { stops, load, capacity };
+  }
+
+  /** Past er nog een metro bij op deze lijn, zonder dat ergens gedeeld spoor overvol raakt? */
+  canAddTrain(routeIdx: number): boolean {
+    const { stops, load, capacity } = this.trackUsage();
+    const own = stops[routeIdx]!;
+    if (own.size < 2) return false;
+    return ROUTES_DEF.every((_, line) => {
+      const shared = [...own].filter((id) => stops[line]!.has(id)).length;
+      return shared === 0 || load[line]! + shared / own.size <= capacity[line]! + 1e-9;
+    });
+  }
+
+  /** Hoe vol het drukste stuk spoor van deze lijn zit (1 = vol). */
+  trackOccupancy(routeIdx: number): number {
+    const { stops, load, capacity } = this.trackUsage();
+    const own = stops[routeIdx]!;
+    let max = 0;
+    ROUTES_DEF.forEach((_, line) => {
+      const shares = [...own].some((id) => stops[line]!.has(id));
+      if (shares && capacity[line]! > 0) max = Math.max(max, load[line]! / capacity[line]!);
+    });
+    return max;
+  }
+
+  /** Koopt een metro op een lijn, startend bij `spawnId`. Geeft false bij te weinig geld of vol spoor. */
   buyTrain(routeIdx: number, spawnId: string): boolean {
     const cost = this.trainCost(routeIdx);
-    if (this.state.money < cost) return false;
+    if (this.state.money < cost || !this.canAddTrain(routeIdx)) return false;
     this.state.money -= cost;
     this.state.trains.push(new Train(this, routeIdx, spawnId));
     this.state.trainCounts[routeIdx] = (this.state.trainCounts[routeIdx] ?? 0) + 1;
     return true;
   }
 
-  /** Kan deze zone open, los van het geld? Alleen als hij aansluit op het netwerk (zie `canUnlockZone`). */
+  /** Kan deze zone open? Alleen als hij aansluit op het netwerk (zie `canUnlockZone`). */
   canUnlockZone(key: ZoneId): boolean {
     return canUnlockZone(this.zones, key);
   }
 
-  /** Opent een zone. Geeft false als dat niet kan (te weinig geld, al open of sluit niet aan). */
+  /** De zone die als volgende vanzelf opengaat: de goedkoopste die aansluit. */
+  nextZone(): ZoneId | undefined {
+    return this.zoneSchedule()[0]?.zone;
+  }
+
+  /** Wanneer de nog dichte zones vanzelf opengaan, in volgorde (speltijd in ms). */
+  zoneSchedule(): { zone: ZoneId; at: number }[] {
+    const zones = cloneZones();
+    for (const key of Object.keys(zones) as ZoneId[]) zones[key].unlocked = this.zones[key].unlocked;
+    const schedule: { zone: ZoneId; at: number }[] = [];
+    let at = this.state.nextZoneTime;
+    for (;;) {
+      const next = (Object.keys(zones) as ZoneId[])
+        .filter((z) => canUnlockZone(zones, z))
+        .sort((a, b) => zones[a].cost - zones[b].cost)[0];
+      if (!next || !Number.isFinite(at)) return schedule;
+      schedule.push({ zone: next, at });
+      zones[next].unlocked = true;
+      at += BALANCE.expansion.zoneInterval;
+    }
+  }
+
+  private openZone(key: ZoneId): void {
+    this.zones[key].unlocked = true;
+    this.state.zoneOpenedAt[key] = this.state.time;
+    for (const t of this.state.trains) t.updatePathCache();
+  }
+
+  /**
+   * Koopt een zone. In het spel gaan zones vanzelf open (zie `BALANCE.expansion`); dit is voor het
+   * debugmenu en tests. Geeft false als dat niet kan (te weinig geld, al open of sluit niet aan).
+   */
   unlockZone(key: ZoneId): boolean {
     const zone = this.zones[key];
     if (this.state.money < zone.cost || !this.canUnlockZone(key)) return false;
     this.state.money -= zone.cost;
-    zone.unlocked = true;
-    for (const t of this.state.trains) t.updatePathCache();
+    this.openZone(key);
     return true;
+  }
+
+  /** Is deze upgrade op zijn hoogste niveau? */
+  upgradeMaxed(type: UpgradeType): boolean {
+    return this.state.upgradeLevels[type] >= BALANCE.upgrades[type].maxLevel;
   }
 
   buyUpgrade(type: UpgradeType): boolean {
     const state = this.state;
     const cost = state.costs[type];
-    if (state.money < cost) return false;
+    if (state.money < cost || this.upgradeMaxed(type)) return false;
     state.money -= cost;
+    state.upgradeLevels[type]++;
 
     const upgrade = BALANCE.upgrades[type];
     state.costs[type] = Math.floor(cost * upgrade.costGrowth);

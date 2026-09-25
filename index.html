@@ -190,6 +190,10 @@
             <div class="text-right text-[#003D86] font-bold"><span id="transfer-count">0</span></div>
             <div class="text-gray-500">Gem. reistijd:</div>
             <div class="text-right text-[#003D86] font-bold"><span id="avg-travel-time">–</span></div>
+            <div class="text-gray-500">Reizigersvraag:</div>
+            <div class="text-right text-[#003D86] font-bold"><span id="demand-level">×1,0</span></div>
+            <div class="text-gray-500">Exploitatie:</div>
+            <div class="text-right text-[#C20019] font-bold">€<span id="operating-cost">0</span>/min</div>
           </div>
 
           <!-- Buy Train -->
@@ -248,7 +252,7 @@
                 <div class="font-bold text-gray-800 text-sm">Frequentie Verhogen</div>
                 <div class="text-xs text-gray-500">Snellere doorstroming</div>
               </div>
-              <div class="text-[#003D86] font-bold text-sm">€<span id="cost-speed">300</span></div>
+              <div id="price-speed" class="text-[#003D86] font-bold text-sm">€<span id="cost-speed">300</span></div>
             </button>
 
             <button
@@ -259,7 +263,9 @@
                 <div class="font-bold text-gray-800 text-sm">Langere Metro's</div>
                 <div class="text-xs text-gray-500">+ Capaciteit per rit</div>
               </div>
-              <div class="text-[#003D86] font-bold text-sm">€<span id="cost-capacity">400</span></div>
+              <div id="price-capacity" class="text-[#003D86] font-bold text-sm">
+                €<span id="cost-capacity">400</span>
+              </div>
             </button>
 
             <button
@@ -270,7 +276,7 @@
                 <div class="font-bold text-gray-800 text-sm">Station Faciliteiten</div>
                 <div class="text-xs text-gray-500">Verhoogt ticketprijs</div>
               </div>
-              <div class="text-[#003D86] font-bold text-sm">€<span id="cost-comfort">600</span></div>
+              <div id="price-comfort" class="text-[#003D86] font-bold text-sm">€<span id="cost-comfort">600</span></div>
             </button>
 
             <button
@@ -281,7 +287,9 @@
                 <div class="font-bold text-gray-800 text-sm">Promotie Campagne</div>
                 <div class="text-xs text-gray-500">Verbetert imago</div>
               </div>
-              <div class="text-[#003D86] font-bold text-sm">€<span id="cost-marketing">150</span></div>
+              <div id="price-marketing" class="text-[#003D86] font-bold text-sm">
+                €<span id="cost-marketing">150</span>
+              </div>
             </button>
           </div>
         </div>
@@ -289,9 +297,9 @@
         <!-- Tab: Expand -->
         <div id="panel-expand" class="p-6 flex-1 hidden flex-col gap-4">
           <div class="bg-blue-50 border border-blue-100 p-4 rounded-lg text-xs text-blue-800 mb-2 leading-relaxed">
-            <strong>Netwerk Uitbreiding</strong><br />
-            Open nieuwe zones om het netwerk te vergroten. Passagiersaantallen zullen stijgen naarmate meer gebieden
-            bereikbaar zijn.
+            <strong>De stad groeit</strong><br />
+            Om de paar minuten gaat er vanzelf een nieuwe zone open. Lijnen die er al rijden, groeien mee; op een nieuwe
+            lijn moet je zelf metro's inzetten. Onbediende stations kosten tevredenheid.
           </div>
           <div id="expansion-list" class="flex flex-col gap-3 pb-4">
             <!-- Dynamic Content -->

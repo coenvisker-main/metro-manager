@@ -1,9 +1,14 @@
 import { ROUTES_DEF, getStation, type ZoneId } from '../data/network';
 import type { Renderer } from '../render/renderer';
 import { BALANCE } from '../sim/config';
-import { unlockPrerequisites } from '../sim/routing';
 import type { Game } from '../sim/game';
 import type { PopupType, UpgradeType } from '../sim/types';
+
+/** Speltijd in ms als m:ss. */
+function formatTime(ms: number): string {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -18,13 +23,16 @@ const UPGRADES: readonly { type: UpgradeType; notice: string }[] = [
   { type: 'capacity', notice: `Vloot uitgebreid: +${upgrades.capacity.extraCapacity} pax/trein` },
   {
     type: 'comfort',
-    notice: `Upgrade: Prijs +€${upgrades.comfort.extraTicketPrice.toFixed(2)} & Geduld +${upgrades.comfort.extraPatience / 1000}s`,
+    notice: `Upgrade: Prijs +€${upgrades.comfort.extraTicketPrice.toFixed(2)} & Geduld +${String(upgrades.comfort.extraPatience / 1000).replace('.', ',')}s`,
   },
   { type: 'marketing', notice: 'Campagne geslaagd!' },
 ];
 
 /** Alle DOM-interactie: zijbalk, knoppen, modals en meldingen. */
 export class Ui {
+  /** Wanneer de dichte zones opengaan; bijgewerkt in `updateUI`. */
+  private schedule: { zone: ZoneId; at: number }[] = [];
+
   constructor(
     private readonly game: Game,
     private readonly renderer: Renderer,
@@ -58,11 +66,6 @@ export class Ui {
     el('spawn-choices').addEventListener('click', (e) => {
       const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-spawn]');
       if (btn) this.confirmBuyTrain(Number(btn.dataset.route), btn.dataset.spawn ?? '');
-    });
-
-    el('expansion-list').addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-zone]');
-      if (btn && !btn.disabled) this.unlockZone(btn.dataset.zone as ZoneId);
     });
   }
 
@@ -107,6 +110,11 @@ export class Ui {
       state.passengersTransported > 0
         ? `${Math.round(state.totalTravelTime / state.passengersTransported / 1000)} s`
         : '–';
+    el('demand-level').innerText = `×${this.game.demandMultiplier.toFixed(1).replace('.', ',')}`;
+    for (const { zone, at } of this.schedule) {
+      const eta = document.getElementById(`zone-eta-${zone}`);
+      if (eta) eta.innerText = `Opent over ${formatTime(at - state.time)}`;
+    }
   }
 
   /** Werkt de hele zijbalk bij. BEKENDE BUG (fase 3): bouwt de uitbreidingslijst bij elke geldmutatie opnieuw op. */
@@ -119,51 +127,52 @@ export class Ui {
     el('fleet-size').innerText = String(state.trains.length);
     el('ticket-price').innerText = state.baseTicketPrice.toFixed(2);
     for (const { type } of UPGRADES) {
-      el(`cost-${type}`).innerText = String(state.costs[type]);
-      el<HTMLButtonElement>(`btn-${type}`).disabled = state.money < state.costs[type];
+      const maxed = this.game.upgradeMaxed(type);
+      const { maxLevel } = BALANCE.upgrades[type];
+      el(`price-${type}`).innerHTML = maxed ? 'max' : `€<span id="cost-${type}">${state.costs[type]}</span>`;
+      const btn = el<HTMLButtonElement>(`btn-${type}`);
+      btn.disabled = maxed || state.money < state.costs[type];
+      btn.title = Number.isFinite(maxLevel) ? `Niveau ${state.upgradeLevels[type]}/${maxLevel}` : '';
     }
+
+    el('operating-cost').innerText = String(this.game.operatingCostPerMinute);
 
     ROUTES_DEF.forEach((route, i) => {
       const btn = el(`btn-train-${i}`);
       const cost = this.game.trainCost(i);
+      const full = !this.game.canAddTrain(i);
+      const occupancy = Math.round(this.game.trackOccupancy(i) * 100);
       const label = btn.querySelector<HTMLElement>('.cost-label');
-      if (label) label.innerText = `€${cost}`;
-      btn.title = `${route.name}\nKosten: €${cost}`;
-      btn.classList.toggle('opacity-50', state.money < cost);
+      if (label) label.innerText = full ? 'vol' : `€${cost}`;
+      const track = full ? 'spoor vol' : `spoor ${occupancy}% bezet\nKosten: €${cost}`;
+      btn.title = `${route.name}\n${this.game.trainsOnLine(i)} metro's, ${track}`;
+      btn.classList.toggle('opacity-50', full || state.money < cost);
     });
 
+    // Uitbreiding: open zones, en wanneer de rest vanzelf opengaat.
     const list = el('expansion-list');
     list.innerHTML = '';
-    for (const key of Object.keys(zones) as ZoneId[]) {
-      if (key === 'centrum') continue;
+    this.schedule = this.game.zoneSchedule();
+    const scheduled = new Set(this.schedule.map((s) => s.zone));
+    const keys = (Object.keys(zones) as ZoneId[]).filter((k) => k !== 'centrum');
+    const order = [...keys.filter((k) => zones[k].unlocked), ...this.schedule.map((s) => s.zone)];
+    for (const key of order) {
       const zone = zones[key];
-      const connects = zone.unlocked || this.game.canUnlockZone(key);
       const row = document.createElement('div');
       row.className = `flex justify-between items-center p-3 rounded-lg border ${zone.unlocked ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`;
+      const status = zone.unlocked ? 'Operationeel' : scheduled.has(key) ? `<span id="zone-eta-${key}"></span>` : '';
       row.innerHTML = `
             <div>
                 <div class="font-bold text-xs ${zone.unlocked ? 'text-green-700' : 'text-gray-700'}">${zone.name}</div>
-                <div class="text-[10px] text-gray-400">${zone.unlocked ? 'Operationeel' : 'Kosten: €' + zone.cost}</div>
-                ${connects ? '' : `<div class="text-[10px] text-[#C20019]">${this.missingConnectionText(key)}</div>`}
+                <div class="text-[10px] text-gray-400">${status}</div>
             </div>
-            ${
-              !zone.unlocked
-                ? `<button data-zone="${key}" class="btn-ret px-3 py-1 text-[10px] font-bold text-[#003D86] hover:bg-blue-50" ${state.money < zone.cost || !connects ? 'disabled' : ''}>BOUW</button>`
-                : '<span class="text-green-600 text-sm">✔</span>'
-            }
+            ${zone.unlocked ? '<span class="text-green-600 text-sm">✔</span>' : ''}
         `;
       list.appendChild(row);
     }
 
     const showWarning = state.reputation < BALANCE.limits.reputationWarning && !state.gameOver;
     el('reputation-warning').classList.toggle('hidden', !showWarning);
-  }
-
-  /** Uitleg waarom een zone nog niet open kan. */
-  private missingConnectionText(key: ZoneId): string {
-    const zones = this.game.zones;
-    const first = unlockPrerequisites(zones, key).map((z) => zones[z].name);
-    return first.length > 0 ? `Open eerst: ${first.join(' of ')}` : 'Sluit nog niet aan op het netwerk';
   }
 
   switchTab(tab: 'manage' | 'expand'): void {
@@ -177,6 +186,10 @@ export class Ui {
   }
 
   initiateBuyTrain(routeIdx: number): void {
+    if (!this.game.canAddTrain(routeIdx)) {
+      this.notify(`Het spoor van lijn ${ROUTES_DEF[routeIdx]?.id} zit vol. Wacht tot de stad groeit.`);
+      return;
+    }
     const cost = this.game.trainCost(routeIdx);
     if (this.game.state.money < cost) {
       this.notify('Onvoldoende saldo voor deze lijn!');
@@ -225,12 +238,11 @@ export class Ui {
     this.closeSpawnModal();
   }
 
-  unlockZone(key: ZoneId): void {
-    if (this.game.unlockZone(key)) {
-      this.renderer.markDirty();
-      this.notify(`${this.game.zones[key].name} Geopend!`);
-      this.updateUI();
-    }
+  /** De stad is gegroeid: kaart en zijbalk bijwerken en de speler waarschuwen. */
+  onZoneOpened(key: ZoneId): void {
+    this.renderer.markDirty();
+    this.notify(`${this.game.zones[key].name} is open! Zet er metro's in.`);
+    this.updateUI();
   }
 
   togglePause(): void {

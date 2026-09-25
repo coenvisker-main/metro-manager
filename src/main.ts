@@ -14,6 +14,7 @@ game.hooks = {
   onMoneyChanged: () => ui.updateUI(),
   onPopup: (text, x, y, type) => ui.showFloatingPopup(text, x, y, type),
   onGameOver: (reason, score) => ui.showGameOverModal(reason, score),
+  onZoneOpened: (key) => ui.onZoneOpened(key),
 };
 
 window.addEventListener('error', (e) => ui.showError(`Error: ${e.message} (${e.filename}:${e.lineno}:${e.colno})`));

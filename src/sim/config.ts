@@ -7,57 +7,74 @@ export const BALANCE = {
   start: {
     money: 600,
     reputation: 100,
-    ticketPrice: 8,
+    ticketPrice: 5,
     /**
      * Treinsnelheid: voortgang per stap van 1/60 s over een afstand van `train.referenceDistance`
-     * kaarteenheden. Hoger is sneller. Zie ook `time.referenceSpeed`.
+     * kaarteenheden. Hoger is sneller.
      */
     trainSpeed: 0.012,
     /** Reizigers per metro. */
     trainCapacity: 20,
-    /** Hoe lang een reiziger op een perron wil wachten, vóór schaling met de snelheid (`time.referenceSpeed`). */
-    patience: 60_000,
+    /** Hoe lang een reiziger op een perron wil wachten. */
+    patience: 30_000,
     /** Lijnen (index in ROUTES_DEF) waarop bij de start een metro rijdt: D en A. */
     trainRoutes: [3, 0] as readonly number[],
-  },
-
-  /**
-   * Snelheid als tijdsfactor: hogere treinsnelheid laat ook reizigers sneller verschijnen en korter
-   * wachten (factor = treinsnelheid / referentiesnelheid). Bij de start is de factor 2, dus het
-   * effectieve geduld 30 s.
-   */
-  time: {
-    referenceSpeed: 0.006,
   },
 
   /** Hoeveel reizigers er verschijnen. */
   demand: {
     /** Basistijd tussen twee spawnpogingen. */
-    spawnInterval: 1000,
+    spawnInterval: 500,
     /** Elk open station maakt de basistijd korter: interval / (1 + stations × deze factor). */
-    spawnIntervalPerStation: 0.05,
+    spawnIntervalPerStation: 0.03,
     /** Kans dat een spawnpoging echt een reiziger oplevert. */
     spawnChance: 0.7,
+    /** De vraag groeit met de speltijd: × (1 + minuten × deze factor). 0,4 = na 10 minuten vijf keer zoveel reizigers. */
+    growthPerMinute: 0.4,
+  },
+
+  /**
+   * De stad groeit vanzelf: na `firstZoneAfter` en daarna elke `zoneInterval` gaat de goedkoopste
+   * aansluitende zone open. Lijnen die er al rijden groeien mee; nieuwe lijnen moet de speler bedienen.
+   */
+  expansion: {
+    firstZoneAfter: 60_000,
+    zoneInterval: 60_000,
+    /** Een nieuwe zone trekt geleidelijk reizigers: na het openen groeit het aandeel in deze tijd van 0 naar vol. */
+    rampUpTime: 120_000,
   },
 
   /** Wat een aangekomen reiziger oplevert. */
   reward: {
     /** Fooi als de reis sneller was dan `tipPatienceShare` × geduld. */
-    tip: 5,
+    tip: 2,
     tipPatienceShare: 0.7,
     /** Afstandsbonus per kaarteenheid hemelsbreed van begin- tot eindstation (afgerond naar beneden). */
-    distanceBonusPerUnit: 0.1,
-    reputationPerArrival: 0.2,
+    distanceBonusPerUnit: 0.04,
+    reputationPerArrival: 0.02,
   },
 
   /** Wat een reiziger kost die het wachten opgeeft. */
   penalty: {
     reputationPerExpired: 1,
+    /** Elke kasstroomtermijn kost elk station dat meer dan `crowdedShare` × stationcapaciteit wachtenden heeft dit. */
+    reputationPerCrowdedStation: 1,
+    crowdedShare: 0.5,
   },
 
-  /** Subsidie: elke `interval` ms tevredenheid × `perReputation` euro. */
-  subsidy: {
+  /** Kasstroom: elke `interval` ms worden de exploitatiekosten afgeschreven en eventueel subsidie uitbetaald. */
+  cashflow: {
     interval: 10_000,
+    /**
+     * Exploitatiekosten per rijtuig per minuut; een metro heeft capaciteit ÷ `train.carCapacity` rijtuigen.
+     * Het saldo mag negatief worden; dan kun je niks kopen.
+     */
+    costPerCarPerMinute: 100,
+  },
+
+  /** Subsidie als vangnet: alleen bij schuld (saldo onder `moneyThreshold`), tevredenheid × `perReputation` euro. */
+  subsidy: {
+    moneyThreshold: 0,
     perReputation: 1.5,
   },
 
@@ -66,6 +83,13 @@ export const BALANCE = {
     /** Prijs van de eerste metro op een lijn; elke volgende op dezelfde lijn wordt `costGrowth` keer duurder. */
     baseCost: 500,
     costGrowth: 1.3,
+    /**
+     * Spoorcapaciteit: per lijn passen er haltes ÷ deze waarde metro's. Gedeeld spoor wordt gedeeld: elke metro telt
+     * mee voor het deel van zijn traject dat over een lijn loopt. Zie `Game.canAddTrain`.
+     */
+    stopsPerTrain: 1.5,
+    /** Reizigers per rijtuig: een metro van 20 plaatsen is 2 rijtuigen. "Langere metro's" voegt er een toe. */
+    carCapacity: 10,
     /** Stilstand bij een station. */
     boardingTime: 500,
     /** Treinsnelheid geldt over deze afstand in kaarteenheden; kortere stukken gaan navenant sneller. */
@@ -74,16 +98,19 @@ export const BALANCE = {
     minDistance: 20,
   },
 
-  /** Investeringen. Na elke aankoop wordt de prijs `costGrowth` keer hoger. */
+  /**
+   * Investeringen. Na elke aankoop wordt de prijs `costGrowth` keer hoger. Blijvende upgrades kunnen hooguit
+   * `maxLevel` keer; de campagne is eenmalig (herstelt tevredenheid) en heeft geen maximum.
+   */
   upgrades: {
-    /** "Frequentie verhogen". */
-    speed: { cost: 300, costGrowth: 1.5, speedFactor: 1.15 },
-    /** "Langere metro's". */
-    capacity: { cost: 400, costGrowth: 1.5, extraCapacity: 10 },
+    /** "Frequentie verhogen": alleen snellere metro's. */
+    speed: { cost: 300, costGrowth: 1.5, maxLevel: 5, speedFactor: 1.15 },
+    /** "Langere metro's": een rijtuig erbij per niveau. */
+    capacity: { cost: 400, costGrowth: 1.5, maxLevel: 5, extraCapacity: 10 },
     /** "Station faciliteiten". */
-    comfort: { cost: 600, costGrowth: 1.5, extraTicketPrice: 2, extraPatience: 5000 },
+    comfort: { cost: 600, costGrowth: 1.5, maxLevel: 5, extraTicketPrice: 1, extraPatience: 2500 },
     /** "Promotie campagne". */
-    marketing: { cost: 150, costGrowth: 1.3, extraReputation: 25 },
+    marketing: { cost: 150, costGrowth: 1.3, maxLevel: Infinity, extraReputation: 25 },
   },
 
   /** Grenzen en verliescondities. */
@@ -91,6 +118,8 @@ export const BALANCE = {
     maxReputation: 100,
     /** Max. wachtenden per station voordat de overvol-timer start. */
     stationCapacity: 40,
+    /** Overstapstations zijn groter: per extra lijn die er stopt komen er zoveel plekken bij. */
+    stationCapacityPerExtraLine: 20,
     /** Hoe lang een station overvol mag zijn voordat het game over is. */
     overloadGracePeriod: 10_000,
     /** Onder dit percentage tevredenheid verschijnt de rode waarschuwingsrand. */

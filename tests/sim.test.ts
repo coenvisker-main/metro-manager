@@ -2,13 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE, MAX_FRAME_MS } from '../src/sim/config';
 import { ROUTES_DEF, STATIONS, ZONES_DEF, type ZoneId } from '../src/data/network';
 import { mapDistance } from '../src/sim/layout';
-import {
-  areStationsConnected,
-  canUnlockZone,
-  getLineStops,
-  getUnlockedPath,
-  unlockPrerequisites,
-} from '../src/sim/routing';
+import { areStationsConnected, canUnlockZone, getLineStops, getUnlockedPath } from '../src/sim/routing';
 import { Train } from '../src/sim/train';
 import { createTestGame, passenger, quiet, unlockAll } from './helpers';
 
@@ -74,7 +68,7 @@ describe('simulatie', () => {
     expect(t.game.state.passengersTransported).toBe(1);
   });
 
-  it('wachtende reizigers verlopen na het (geschaalde) geduld en kosten 1% tevredenheid', () => {
+  it('wachtende reizigers verlopen na hun geduld (30 s) en kosten 1% tevredenheid', () => {
     const t = createTestGame();
     quiet(t.game);
     t.game.state.trains = [];
@@ -165,7 +159,7 @@ describe('tijdmodel', () => {
     const t = createTestGame();
     quiet(t.game);
     t.game.state.trains = [];
-    for (let i = 0; i < BALANCE.limits.stationCapacity; i++) passenger(t.game, 'beurs', 'blaak');
+    for (let i = 0; i < t.game.stationCapacity('beurs'); i++) passenger(t.game, 'beurs', 'blaak');
     t.run(1);
     t.game.togglePause();
     t.runSeconds(15);
@@ -178,7 +172,7 @@ describe('tijdmodel', () => {
     t.game.state.trains = [];
     t.game.state.passengerPatience = 10_000_000;
     const fill = () => {
-      for (let i = 0; i < BALANCE.limits.stationCapacity; i++) passenger(t.game, 'beurs', 'blaak');
+      for (let i = 0; i < t.game.stationCapacity('beurs'); i++) passenger(t.game, 'beurs', 'blaak');
     };
     fill();
     t.run(1);
@@ -240,8 +234,8 @@ describe('spelersacties', () => {
     game.buyUpgrade('capacity');
     expect(game.state.trainCapacity).toBe(30);
     game.buyUpgrade('comfort');
-    expect(game.state.baseTicketPrice).toBe(10);
-    expect(game.state.passengerPatience).toBe(65000);
+    expect(game.state.baseTicketPrice).toBe(BALANCE.start.ticketPrice + BALANCE.upgrades.comfort.extraTicketPrice);
+    expect(game.state.passengerPatience).toBe(32_500);
     game.state.reputation = 90;
     game.buyUpgrade('marketing');
     expect(game.state.reputation).toBe(100);
@@ -265,7 +259,7 @@ describe('verliescondities', () => {
     quiet(t.game);
     t.game.state.trains = [];
     t.game.state.passengerPatience = 10_000_000;
-    for (let i = 0; i < BALANCE.limits.stationCapacity; i++) passenger(t.game, 'beurs', 'blaak');
+    for (let i = 0; i < t.game.stationCapacity('beurs'); i++) passenger(t.game, 'beurs', 'blaak');
     t.runSeconds(9);
     expect(t.game.state.gameOver).toBe(false);
     t.runSeconds(2);
@@ -386,8 +380,11 @@ describe('reizen', () => {
     expect(t.game.state.passengersTransported).toBe(1);
     expect([...transferStations]).toEqual(['beurs']);
     expect(restartedPatience).toBe(true);
-    // Ticket €8 + afstandsbonus van begin- tot eindstation + fooi €5, in één keer.
-    expect(moneyChanges).toEqual([8 + Math.floor(mapDistance('cs', 'oostplein') * 0.1) + 5]);
+    // Ticket + afstandsbonus van begin- tot eindstation + fooi, in één keer.
+    const { reward } = BALANCE;
+    expect(moneyChanges).toEqual([
+      BALANCE.start.ticketPrice + Math.floor(mapDistance('cs', 'oostplein') * reward.distanceBonusPerUnit) + reward.tip,
+    ]);
   });
 
   it('zonder metro op de benodigde lijn stapt een reiziger niet in en verloopt hij', () => {
@@ -497,8 +494,8 @@ describe('zones en spoor', () => {
     const { game } = createTestGame();
     for (const z of ['kop_zuid', 'slinge', 'spijkenisse'] as const) game.zones[z].unlocked = true;
     expect(canUnlockZone(game.zones, 'west_2')).toBe(false);
-    expect(unlockPrerequisites(game.zones, 'west_2')).toEqual(['west_1']);
-    expect(unlockPrerequisites(game.zones, 'de_akkers')).toEqual([]);
+    game.zones.west_1.unlocked = true;
+    expect(canUnlockZone(game.zones, 'west_2')).toBe(true);
     expect(canUnlockZone(game.zones, 'de_akkers')).toBe(true);
   });
 
@@ -551,5 +548,159 @@ describe('tellers', () => {
     passenger(e.game, 'cs', 'blaak');
     e.runSeconds(31);
     expect(e.game.state.passengersExpired).toBe(2);
+  });
+});
+
+describe('balans: groei, kosten en capaciteit', () => {
+  it('de stad groeit: na de eerste termijn gaat de goedkoopste aansluitende zone vanzelf open', () => {
+    const t = createTestGame();
+    const opened: string[] = [];
+    t.game.hooks.onZoneOpened = (key) => opened.push(key);
+    t.runSeconds(BALANCE.expansion.firstZoneAfter / 1000 - 1);
+    expect(opened).toEqual([]);
+    t.runSeconds(2);
+    expect(opened).toEqual(['kop_zuid']);
+    expect(t.game.zones.kop_zuid.unlocked).toBe(true);
+    // Metro D rijdt nu vanzelf door naar Kop van Zuid.
+    expect(t.game.state.trains.find((tr) => tr.routeDef.id === 'D')!.activePath).toContain('rijnhaven');
+    t.runSeconds(BALANCE.expansion.zoneInterval / 1000);
+    expect(opened).toHaveLength(2);
+  });
+
+  it('het schema van de uitbreiding klopt met wat er daarna echt opengaat', () => {
+    const t = createTestGame();
+    const schedule = t.game.zoneSchedule();
+    expect(schedule).toHaveLength(Object.keys(t.game.zones).length - 1);
+    const opened: string[] = [];
+    t.game.hooks.onZoneOpened = (key) => opened.push(key);
+    t.game.state.lastSpawnTime = Infinity; // geen reizigers: deze test gaat alleen over de zones
+    t.runSeconds(schedule[2]!.at / 1000 + 1);
+    expect(opened).toEqual(schedule.slice(0, 3).map((s) => s.zone));
+  });
+
+  it('gedeeld spoor, gedeelde capaciteit: D en E rijden in het centrum over dezelfde haltes', () => {
+    const { game } = createTestGame();
+    game.state.money = 100_000;
+    // Startmetro's: D en A. Er past nog één metro bij op het spoor van D/E.
+    expect(game.canAddTrain(4)).toBe(true);
+    expect(game.buyTrain(3, 'cs')).toBe(true);
+    // Nu zit het spoor van D/E vol, ook al rijdt er nog geen enkele E.
+    expect(game.canAddTrain(4)).toBe(false);
+    expect(game.buyTrain(4, 'cs')).toBe(false);
+    expect(game.buyTrain(3, 'cs')).toBe(false);
+    // Op de stam van A/B/C past er nog één bij, ongeacht welke lijn (de D-metro's tellen via Beurs een beetje mee).
+    expect(game.buyTrain(1, 'dijkzigt')).toBe(true);
+    expect(game.buyTrain(2, 'dijkzigt')).toBe(false); // na B zit de stam vol
+    // Als de stad groeit, groeit de capaciteit mee.
+    game.zones.kop_zuid.unlocked = true;
+    expect(game.canAddTrain(4)).toBe(true);
+  });
+
+  it('exploitatiekosten worden elke kasstroomtermijn afgeschreven', () => {
+    const t = createTestGame();
+    t.game.state.money = 10_000;
+    t.game.state.lastSpawnTime = Infinity;
+    t.runSeconds(BALANCE.cashflow.interval / 1000 + 0.5);
+    const expected = Math.round((2 * t.game.costPerTrainPerMinute * BALANCE.cashflow.interval) / 60_000);
+    expect(10_000 - t.game.state.money).toBeCloseTo(expected, 0);
+  });
+
+  it('subsidie alleen bij schuld: niet bij een positief saldo, wel onder nul', () => {
+    const t = createTestGame();
+    t.game.state.lastSpawnTime = Infinity;
+    t.game.state.trains = [];
+    t.game.state.money = 1;
+    t.runSeconds(BALANCE.cashflow.interval / 1000 + 0.5);
+    expect(t.game.state.money).toBe(1);
+    t.game.state.money = -10;
+    t.runSeconds(BALANCE.cashflow.interval / 1000);
+    expect(t.game.state.money).toBe(-10 + Math.floor(100 * BALANCE.subsidy.perReputation));
+  });
+
+  it('blijvende upgrades hebben een maximum niveau; de campagne niet', () => {
+    const { game } = createTestGame();
+    game.state.money = 1e9;
+    for (let i = 0; i < 10; i++) game.buyUpgrade('capacity');
+    expect(game.state.upgradeLevels.capacity).toBe(BALANCE.upgrades.capacity.maxLevel);
+    expect(game.upgradeMaxed('capacity')).toBe(true);
+    expect(game.state.trainCapacity).toBe(
+      BALANCE.start.trainCapacity + BALANCE.upgrades.capacity.maxLevel * BALANCE.upgrades.capacity.extraCapacity,
+    );
+    for (let i = 0; i < 10; i++) game.buyUpgrade('marketing');
+    expect(game.state.upgradeLevels.marketing).toBe(10);
+  });
+
+  it('de vraag groeit met de speltijd', () => {
+    const t = createTestGame();
+    expect(t.game.demandMultiplier).toBe(1);
+    t.game.state.time = 10 * 60_000;
+    expect(t.game.demandMultiplier).toBeCloseTo(1 + 10 * BALANCE.demand.growthPerMinute);
+  });
+
+  it('"Frequentie verhogen" maakt alleen metro\'s sneller: het geduld van reizigers blijft gelijk', () => {
+    const t = createTestGame();
+    quiet(t.game);
+    t.game.state.trains = [];
+    t.game.state.money = 10_000;
+    t.game.buyUpgrade('speed');
+    t.game.buyUpgrade('speed');
+    passenger(t.game, 'cs', 'beurs');
+    t.runSeconds(BALANCE.start.patience / 1000 - 1);
+    expect(t.game.state.waitingPassengers).toHaveLength(1);
+    t.runSeconds(2);
+    expect(t.game.state.waitingPassengers).toHaveLength(0);
+  });
+});
+
+describe('balans na speeltest 2', () => {
+  it('drukte kost tevredenheid: een station dat meer dan half vol staat, kost elke termijn tevredenheid', () => {
+    const t = createTestGame();
+    t.game.state.lastSpawnTime = Infinity;
+    t.game.state.trains = [];
+    t.game.state.money = 1e6;
+    t.game.state.passengerPatience = 1e9;
+    const crowd = Math.floor(t.game.stationCapacity('stadhuis') * BALANCE.penalty.crowdedShare) + 1;
+    for (let i = 0; i < crowd; i++) passenger(t.game, 'stadhuis', 'cs');
+    t.runSeconds(BALANCE.cashflow.interval / 1000 + 0.5);
+    expect(t.game.state.reputation).toBe(100 - BALANCE.penalty.reputationPerCrowdedStation);
+  });
+
+  it("exploitatie per rijtuig: langere metro's kosten meer per minuut", () => {
+    const { game } = createTestGame();
+    const before = game.costPerTrainPerMinute;
+    expect(before).toBe(
+      (BALANCE.start.trainCapacity / BALANCE.train.carCapacity) * BALANCE.cashflow.costPerCarPerMinute,
+    );
+    game.state.money = 1e6;
+    game.buyUpgrade('capacity');
+    expect(game.costPerTrainPerMinute).toBe(before + BALANCE.cashflow.costPerCarPerMinute);
+  });
+
+  it('overstapstations zijn groter: Beurs (vijf lijnen) kan meer wachtenden aan dan een eindpunt', () => {
+    const { game } = createTestGame();
+    const extra = BALANCE.limits.stationCapacityPerExtraLine;
+    expect(game.stationCapacity('beurs')).toBe(BALANCE.limits.stationCapacity + 4 * extra);
+    expect(game.stationCapacity('de_akkers')).toBe(BALANCE.limits.stationCapacity + extra); // C en D
+    expect(game.stationCapacity('nesselande')).toBe(BALANCE.limits.stationCapacity);
+  });
+
+  it('een nieuwe zone trekt geleidelijk reizigers', () => {
+    const count = (seconds: number) => {
+      const t = createTestGame({ seed: 3 });
+      t.game.state.trains = [];
+      t.game.state.passengerPatience = 1e9;
+      t.game.state.lastCashflowTime = Infinity;
+      t.game.state.nextZoneTime = Infinity;
+      t.game.state.money = 1e6;
+      t.game.unlockZone('kop_zuid');
+      t.runSeconds(seconds);
+      const kopZuid = new Set(['wilhelmina', 'rijnhaven', 'maashaven']);
+      return t.game.state.waitingPassengers.filter((p) => kopZuid.has(p.from)).length;
+    };
+    // In de eerste halve minuut komt er veel minder dan een kwart van de latere stroom uit de nieuwe zone.
+    const early = count(30);
+    const lateRate =
+      (count(BALANCE.expansion.rampUpTime / 1000 + 60) - count(BALANCE.expansion.rampUpTime / 1000)) / 60;
+    expect(early / 30).toBeLessThan(lateRate / 2);
   });
 });

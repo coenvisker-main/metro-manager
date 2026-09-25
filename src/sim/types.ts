@@ -1,4 +1,4 @@
-import type { Zones } from '../data/network';
+import type { ZoneId, Zones } from '../data/network';
 import type { Layout } from './layout';
 import type { JourneyPlanner } from './planner';
 import type { Train } from './train';
@@ -49,11 +49,18 @@ export interface GameState {
   trains: Train[];
   waitingPassengers: Passenger[];
   lastSpawnTime: number;
-  lastSubsidyTime: number;
+  /** Speltijd (ms) van de laatste kasstroom (exploitatiekosten en subsidie). */
+  lastCashflowTime: number;
+  /** Speltijd (ms) waarop de volgende zone vanzelf opengaat; Infinity als alles open is. */
+  nextZoneTime: number;
+  /** Speltijd (ms) waarop een zone tijdens het spel openging; voor het geleidelijk groeien van de vraag. */
+  zoneOpenedAt: Partial<Record<ZoneId, number>>;
   trainCounts: number[];
   /** stationId -> speltijd (ms) waarop het station overvol raakte. */
   overloadedStations: Record<string, number>;
   costs: UpgradeCosts;
+  /** Hoe vaak elke upgrade gekocht is. */
+  upgradeLevels: Record<UpgradeType, number>;
 }
 
 export type PopupType = 'success' | 'error' | 'subsidy';

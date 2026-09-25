@@ -1,6 +1,6 @@
 // Botjes en een deterministische simulatie-runner, om de spelbalans te meten (`npm run balance`).
 // Draait de simulatie zonder browser: vaste seed, vaste stappen, geen wandklok.
-import { ROUTES_DEF, type ZoneId } from '../src/data/network';
+import { ROUTES_DEF } from '../src/data/network';
 import { Game } from '../src/sim/game';
 import { Layout } from '../src/sim/layout';
 import { getLineStops } from '../src/sim/routing';
@@ -15,11 +15,6 @@ export interface Bot {
 
 /** Hoe vaak een bot iets mag doen, in seconden speltijd. */
 export const BOT_INTERVAL_S = 5;
-
-const openableZones = (game: Game): ZoneId[] =>
-  (Object.keys(game.zones) as ZoneId[])
-    .filter((z) => game.canUnlockZone(z))
-    .sort((a, b) => game.zones[a].cost - game.zones[b].cost);
 
 const drivableLines = (game: Game): number[] =>
   ROUTES_DEF.map((_, i) => i).filter((i) => game.unlockedPath(i).length >= 2);
@@ -37,55 +32,62 @@ function waitingPerLine(game: Game): Map<number, number> {
 export const BOTS: readonly Bot[] = [
   {
     name: 'niets-doen',
-    description: 'Doet niks: twee startmetro’s op het centrumnetwerk.',
+    description: 'Doet niks: alleen de twee startmetro’s.',
     act: () => {},
   },
   {
-    name: 'uitbreider',
-    description: 'Dom: opent steeds de goedkoopste zone; koopt de goedkoopste metro zodra er meer dan 25 wachten.',
+    name: 'blind-kopen',
+    description: 'Dom: koopt steeds de goedkoopste metro die past, zonder te kijken waar het druk is.',
     act(game) {
-      if (game.state.waitingPassengers.length > 25) {
-        const line = drivableLines(game).sort((a, b) => game.trainCost(a) - game.trainCost(b))[0];
-        if (line !== undefined) game.buyTrain(line, game.unlockedPath(line)[0]!);
-        return;
-      }
-      const zone = openableZones(game)[0];
-      if (zone && game.state.money > game.zones[zone].cost + 500) game.unlockZone(zone);
+      const line = drivableLines(game)
+        .filter((i) => game.canAddTrain(i))
+        .sort((a, b) => game.trainCost(a) - game.trainCost(b))[0];
+      if (line !== undefined) game.buyTrain(line, game.unlockedPath(line)[0]!);
     },
   },
   {
     name: 'beheerder',
     description:
-      'Redelijk: metro erbij op de drukste lijn, capaciteit als metro’s vol zitten, campagne bij lage tevredenheid, en pas uitbreiden als het rustig is.',
+      'Redelijk: eerst lijnen zonder metro bedienen, dan een metro erbij op de drukste lijn (als de exploitatie te betalen blijft), capaciteit als metro’s vol zitten, campagne bij lage tevredenheid, en bij geld over alle upgrades (goedkoopste eerst).',
     act(game) {
       const { state } = game;
       if (state.reputation < 50 && game.buyUpgrade('marketing')) return;
 
-      // Drukste lijn: meeste wachtenden per metro.
-      const trainsPerLine = (i: number) => state.trains.filter((t) => t.routeDefIndex === i).length;
+      // Buffer: een halve minuut exploitatie van de vloot plus één extra metro.
+      const reserve = 0.5 * (game.operatingCostPerMinute + game.costPerTrainPerMinute);
+      const buy = (line: number) =>
+        state.money - game.trainCost(line) > reserve && game.buyTrain(line, game.unlockedPath(line)[0]!);
+
+      // Lijnen zonder metro eerst: daar verloopt iedereen.
+      const unserved = drivableLines(game).find((i) => game.trainsOnLine(i) === 0);
+      if (unserved !== undefined) {
+        buy(unserved);
+        return;
+      }
+
+      // Drukste lijn met plek: meeste wachtenden per metro.
       let busiest: number | undefined;
       let busiestLoad = 0;
       for (const [line, waiting] of waitingPerLine(game)) {
-        const load = waiting / Math.max(1, trainsPerLine(line));
+        if (!game.canAddTrain(line)) continue;
+        const load = waiting / Math.max(1, game.trainsOnLine(line));
         if (load > busiestLoad) {
           busiest = line;
           busiestLoad = load;
         }
       }
-      if (busiest !== undefined && busiestLoad > 8) {
-        game.buyTrain(busiest, game.unlockedPath(busiest)[0]!);
-        return;
-      }
+      if (busiest !== undefined && busiestLoad > 5 && buy(busiest)) return;
 
       const onBoard = state.trains.reduce((sum, t) => sum + t.passengers.length, 0);
       const occupancy = onBoard / Math.max(1, state.trains.length * state.trainCapacity);
-      if (occupancy > 0.8 && game.buyUpgrade('capacity')) return;
+      if (occupancy > 0.6 && state.money - state.costs.capacity > reserve && game.buyUpgrade('capacity')) return;
 
-      const zone = openableZones(game)[0];
-      // Rustig = gemiddeld minder dan een halve wachtende per station.
-      const calm = state.waitingPassengers.length < game.unlockedStationCount * 0.5;
-      if (zone && calm && state.money > game.zones[zone].cost + 300) {
-        game.unlockZone(zone);
+      // Geld over: investeren zoals een speler dat doet (goedkoopste eerst).
+      const upgrades = (['comfort', 'speed', 'capacity'] as const)
+        .filter((u) => !game.upgradeMaxed(u))
+        .sort((a, b) => state.costs[a] - state.costs[b]);
+      for (const u of upgrades) {
+        if (state.money - state.costs[u] > reserve && game.buyUpgrade(u)) return;
       }
     },
   },

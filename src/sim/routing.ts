@@ -88,18 +88,6 @@ export function canUnlockZone(zones: Zones, key: ZoneId): boolean {
   return STATIONS.filter((s) => s.zone === key && s.type !== 'waypoint').every((s) => served.has(s.id));
 }
 
-/**
- * Dichte zones die eerst open moeten (elk ervan is genoeg) voordat `key` kan. Leeg als `key` al kan, of als
- * het niet in één stap lukt.
- */
-export function unlockPrerequisites(zones: Zones, key: ZoneId): ZoneId[] {
-  if (zones[key].unlocked || canUnlockZone(zones, key)) return [];
-  return (Object.keys(zones) as ZoneId[]).filter((other) => {
-    if (other === key || !canUnlockZone(zones, other)) return false;
-    return canUnlockZone({ ...zones, [other]: { ...zones[other], unlocked: true } }, key);
-  });
-}
-
 export function getTrainCost(state: GameState, routeIdx: number): number {
   return Math.floor(state.costs.baseTrain * Math.pow(BALANCE.train.costGrowth, state.trainCounts[routeIdx] ?? 0));
 }

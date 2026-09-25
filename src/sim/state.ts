@@ -19,9 +19,12 @@ export function createInitialState(): GameState {
     trains: [],
     waitingPassengers: [],
     lastSpawnTime: 0,
-    lastSubsidyTime: 0,
+    lastCashflowTime: 0,
+    nextZoneTime: BALANCE.expansion.firstZoneAfter,
+    zoneOpenedAt: {},
     trainCounts: [0, 0, 0, 0, 0],
     overloadedStations: {},
+    upgradeLevels: { speed: 0, capacity: 0, comfort: 0, marketing: 0 },
     costs: {
       baseTrain: BALANCE.train.baseCost,
       speed: BALANCE.upgrades.speed.cost,

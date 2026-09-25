@@ -1,7 +1,7 @@
 # RET Metro Manager
 
-Browserspel waarin je het Rotterdamse metronetwerk beheert: zet metro's in, open nieuwe zones en
-houd de reizigers tevreden.
+Browserspel waarin je het Rotterdamse metronetwerk beheert: de stad groeit, jij zet metro's in en
+houdt de reizigers tevreden.
 
 ## Spelen zonder installatie
 
